@@ -1,0 +1,870 @@
+=== PDF PAGE 112 ===
+Chapter 9. Vector Memory Buffer Instructions
+Vector-memory (VM) buffer operations transfer data between the VGPRs and buffer objects in memory
+through the L0 cache. Vector means that one or more piece of data is transferred uniquely for every thread in
+the wave, in contrast to scalar memory loads that transfer only one value that is shared by all threads in the
+wave.
+The instruction defines which VGPR(s) supply the addresses for the operation, which VGPRs supply or receive
+data from the operation, and a series of SGPRs that contain the memory buffer descriptor (V#). Buffer atomics
+have the option of returning the pre-op memory value to VGPRs.
+Examples of buffer objects are vertex buffers, raw buffers, stream-out buffers, and structured buffers.
+Buffer objects support both homogeneous and heterogeneous data, but no filtering of load-data. Buffer
+instructions are divided into two groups:
+Untyped buffer objects
+• Data format is specified in the resource constant.
+• Load, store, atomic operations, with or without data format conversion.
+Typed buffer objects
+• Data format is specified in the instruction.
+• The only operations are Load and Store, both with data format conversion.
+All buffer operations use a buffer resource constant (V#) that is a 128-bit value in SGPRs. This constant is sent
+when the instruction is executed. This constant defines the address and characteristics of the buffer in
+memory. Typically, these constants are fetched from memory using scalar memory loads prior to executing
+VM instructions, but these constants also can be generated within the shader.
+Memory operations of different types (loads, stores) can complete out of order with respect to each other.
+Simplified view of buffer addressing
+The equation below shows how the memory address is calculated for a buffer access:
+Memory instructions return MEMVIOL for any misaligned access when the alignment mode does not allow it.
+9.1. Buffer Instructions
+Buffer instructions allow the shader program to load from, and store to, linear buffers in memory. These
+operations can operate on data as small as one byte, and up to four DWORDs per work-item. Atomic operations
+take data from VGPRs and combine them arithmetically with data already in memory. Optionally, the value
+that was in memory before the operation took place can be returned to the shader.
+"RDNA4" Instruction Set Architecture
+9.1. Buffer Instructions
+102 of 697
+
+=== PDF PAGE 113 ===
+The D16 instruction variants of buffer ops convert the results to and from packed 16-bit values. For example,
+BUFFER_LOAD_D16_FORMAT_XYZW stores two VGPRs with 4 16-bit values.
+Table 46. Buffer Instructions
+Untyped Buffer Instructions
+BUFFER_LOAD_<size>
+BUFFER_STORE_<size>
+BUFFER_LOAD_FORMAT_{x,xy,xyz,xyzw}
+BUFFER_STORE_FORMAT_{x,xy,xyz,xyzw}
+BUFFER_LOAD_D16_FORMAT_{x,xy,xyz,xyzw}
+BUFFER_STORE_D16_FORMAT_{x,xy,xyz,xyzw}
+BUFFER_LOAD_D16_FORMAT_X
+BUFFER_STORE_D16_FORMAT_X
+BUFFER_LOAD_D16_HI_FORMAT_X
+BUFFER_STORE_D16_HI_FORMAT_X
+Load from or store to an Untyped Buffer object
+<size> = I8, U8, I16, U16, B32, B64, B96, B128
+BUFFER_ATOMIC_<op>
+Buffer object atomic operation. Automatically globally coherent.
+Operates on 32bit or 64bit values.
+Typed Buffer Instructions
+TBUFFER_LOAD_FORMAT_{x,xy,xyz,xyzw}
+TBUFFER_STORE_FORMAT_{x,xy,xyz,xyzw}
+TBUFFER_LOAD_D16_FORMAT_{x,xy,xyz,xyzw}
+TBUFFER_STORE_D16_FORMAT_{x,xy,xyz,xyzw}
+Load from or store to a Typed buffer object.
+ 
+Convert data to 16-bits before loading into VGPRs.
+Convert data from 16-bits to tex-format before storing to memory
+Table 47. Microcode Formats
+Field
+Bit Size
+Description
+OP
+8
+Opcode
+SOFFSET
+7
+SGPR to supply unsigned byte offset. SGPR, M0, NULL
+VADDR
+8
+Address of VGPR to supply first component of address (offset or index). When both index
+and offset are used, index is in the first VGPR, offset in the second.
+VDATA
+8
+Address of VGPR to supply first component of store data or receive first component of load-
+data.
+IOFFSET
+24
+signed 24-bit byte offset, must be non-negative.
+RSRC
+9
+Specifies which SGPR supplies V# (resource constant) in four consecutive SGPRs. Must be a
+multiple of 4, in the range 0-120.
+FORMAT
+7
+Data Format of data in memory buffer for Typed-Buffer instructions. See: Buffer Image
+Format Table
+OFFEN
+1
+1 = Supply an offset from VGPR (VADDR). 0 = Do not (offset = 0).
+IDXEN
+1
+1 = Supply an index from VGPR (VADDR). 0 = Do not (index = 0).
+SCOPE
+2
+Memory Scope
+TH
+3
+Memory Temporal Hint. For atomics, indicates whether or not to return the pre-op value.
+TFE
+1
+Texel Fault Enable for PRT (partially resident textures). When set to 1 and fetch returns a
+NACK, status is written to the VGPR after the last fetch-dest VGPR.
+TBUFFER*_FORMAT instructions (shown below) include a data-format conversion specified in the instruction.
+The instruction specifies the format of data in memory, and it is expanded to 32-bits per component in VGPRs
+except for "D16" instructions - they expand data to 16-bits per component.
+"RDNA4" Instruction Set Architecture
+9.1. Buffer Instructions
+103 of 697
+
+=== PDF PAGE 114 ===
+Table 48. Typed Buffer Instructions
+Opcode
+Description - all address components for buffer ops are uint
+TBUFFER_LOAD_FORMAT_X
+load X component w/ format convert
+TBUFFER_LOAD_FORMAT_XY
+load XY components w/ format convert
+TBUFFER_LOAD_FORMAT_XYZ
+load XYZ components w/ format convert
+TBUFFER_LOAD_FORMAT_XYZW
+load XYZW components w/ format convert
+TBUFFER_STORE_FORMAT_X
+store X component w/ format convert
+TBUFFER_STORE_FORMAT_XY
+store XY components w/ format convert
+TBUFFER_STORE_FORMAT_XYZ
+store XYZ components w/ format convert
+TBUFFER_STORE_FORMAT_XYZW
+store XYZW components w/ format convert
+TBUFFER_LOAD_D16_FORMAT_X
+load X component w/ format convert, 16bit
+TBUFFER_LOAD_D16_FORMAT_XY
+load XY components w/ format convert, 16bit
+TBUFFER_LOAD_D16_FORMAT_XYZ
+load XYZ components w/ format convert, 16bit
+TBUFFER_LOAD_D16_FORMAT_XYZW
+load XYZW components w/ format convert, 16bit
+TBUFFER_STORE_D16_FORMAT_X
+store X component w/ format convert, 16bit
+TBUFFER_STORE_D16_FORMAT_XY
+store XY components w/ format convert, 16bit
+TBUFFER_STORE_D16_FORMAT_XYZ
+store XYZ components w/ format convert, 16bit
+TBUFFER_STORE_D16_FORMAT_XYZW
+store XYZW components w/ format convert, 16bit
+BUFFER*_FORMAT instructions (shown below) include a data-format conversion specified in the resource
+constant (V#).
+In the table below, "D16" means the data in the VGPR is 16-bits, not the usual 32 bits.
+"D16_HI" means that the upper 16-bits of the VGPR is used instead of "D16" that uses the lower 16 bits.
+Table 49. Untyped Buffer Instructions
+Opcode
+Description - all address components for buffer ops are uint
+BUFFER_LOAD_U8
+load unsigned byte (extend 0’s to MSB’s of DWORD VGPR)
+BUFFER_LOAD_D16_U8
+load unsigned byte into VGPR[15:0]
+BUFFER_LOAD_D16_HI_U8
+load unsigned byte into VGPR[31:16]
+BUFFER_LOAD_I8
+load signed byte (sign extend to MSB’s of DWORD VGPR)
+BUFFER_LOAD_D16_I8
+load signed byte into VGPR[15:0]
+BUFFER_LOAD_D16_HI_I8
+load signed byte into VGPR[31:16]
+BUFFER_LOAD_U16
+load unsigned short (extend 0’s to MSB’s of DWORD VGPR)
+BUFFER_LOAD_I16
+load signed short (sign extend to MSB’s of DWORD VGPR)
+BUFFER_LOAD_D16_B16
+load short into VGPR[15:0]
+BUFFER_LOAD_D16_HI_B16
+load short into VGPR[31:16]
+BUFFER_LOAD_B32
+load DWORD
+BUFFER_LOAD_B64
+load 2 DWORD per element
+BUFFER_LOAD_B96
+load 3 DWORD per element
+BUFFER_LOAD_B128
+load 4 DWORD per element
+BUFFER_LOAD_FORMAT_X
+load X component w/ format convert
+BUFFER_LOAD_FORMAT_XY
+load XY components w/ format convert
+BUFFER_LOAD_FORMAT_XYZ
+load XYZ components w/ format convert
+BUFFER_LOAD_FORMAT_XYZW
+load XYZW components w/ format convert
+BUFFER_LOAD_D16_FORMAT_X
+load X component w/ format convert, 16b
+BUFFER_LOAD_D16_HI_FORMAT_X
+load X component w/ format convert, 16b into upper 16-bits of VGPR
+BUFFER_LOAD_D16_FORMAT_XY
+load XY components w/ format convert, 16b
+"RDNA4" Instruction Set Architecture
+9.1. Buffer Instructions
+104 of 697
+
+=== PDF PAGE 115 ===
+Opcode
+Description - all address components for buffer ops are uint
+BUFFER_LOAD_D16_FORMAT_XYZ
+load XYZ components w/ format convert, 16b
+BUFFER_LOAD_D16_FORMAT_XYZW
+load XYZW components w/ format convert, 16b
+BUFFER_STORE_B8
+store byte (ignore MSB’s of DWORD VGPR)
+BUFFER_STORE_D16_HI_B8
+store byte from VGPR bits [23:16]
+BUFFER_STORE_B16
+store short (ignore MSB’s of DWORD VGPR)
+BUFFER_STORE_D16_HI_B16
+store short from VGPR bits [31:16]
+BUFFER_STORE_B32
+store DWORD
+BUFFER_STORE_B64
+store 2 DWORD per element
+BUFFER_STORE_B96
+store 3 DWORD per element
+BUFFER_STORE_B128
+store 4 DWORD per element
+BUFFER_STORE_FORMAT_X
+store X component w/ format convert
+BUFFER_STORE_FORMAT_XY
+store XY components w/ format convert
+BUFFER_STORE_FORMAT_XYZ
+store XYZ components w/ format convert
+BUFFER_STORE_FORMAT_XYZW
+store XYZW components w/ format convert
+BUFFER_STORE_D16_FORMAT_X
+store X component w/ format convert, 16b
+BUFFER_STORE_D16_HI_FORMAT_X
+store X component w/ format convert, 16b from upper 16-bits of VGPR
+BUFFER_STORE_D16_FORMAT_XY
+store XY components w/ format convert, 16b
+BUFFER_STORE_D16_FORMAT_XYZ
+store XYZ components w/ format convert, 16b
+BUFFER_STORE_D16_FORMAT_XYZW
+store XYZW components w/ format convert, 16b
+BUFFER_ATOMIC_ADD_U32
+32b , dst += src, returns previous value if TH==RET
+BUFFER_ATOMIC_ADD_F32
+32b , dst += src, returns previous value if TH==RET
+BUFFER_ATOMIC_PK_ADD_F16
+32b , dst[15:0] += src[15:0]; dst[31:16] += src[31:16]. returns previous value if
+TH==RET
+BUFFER_ATOMIC_ADD_U64
+64b , dst += src, returns previous value if TH==RET
+BUFFER_ATOMIC_AND_B32
+32b , dst &= src, returns previous value if TH==RET
+BUFFER_ATOMIC_AND_B64
+64b , dst &= src, returns previous value if TH==RET
+BUFFER_ATOMIC_CMPSWAP_B32
+32b , dst = (dst == cmp) ? src : dst, returns previous value if TH==RET. Src is from
+vdata, cmp from vdata+1
+BUFFER_ATOMIC_CMPSWAP_B64
+64b , dst = (dst == cmp) ? src : dst, returns previous value if TH==RET
+BUFFER_ATOMIC_DEC_U32
+32b , dst = ( (dst == 0) | (dst > src) ) ? src : dst-1, returns previous value if TH==RET
+BUFFER_ATOMIC_DEC_U64
+64b , dst = ( (dst == 0) | (dst > src) ) ? src : dst-1, returns previous value if TH==RET
+BUFFER_ATOMIC_MAX_NUM_F32
+32b , dst = (src > dst) ? src : dst, (float) returns previous value if TH==RET
+BUFFER_ATOMIC_MIN_NUM_F32
+32b , dst = (src < dst) ? src : dst, (float) returns previous value if TH==RET
+BUFFER_ATOMIC_INC_U32
+32b , dst = (dst >= src) ? 0 : dst+1, returns previous value if TH==RET
+BUFFER_ATOMIC_INC_U64
+64b , dst = (dst >= src) ? 0 : dst+1, returns previous value if TH==RET
+BUFFER_ATOMIC_OR_B32
+32b , dst |= src, returns previous value if TH==RET
+BUFFER_ATOMIC_OR_B64
+64b , dst |= src, returns previous value if TH==RET
+BUFFER_ATOMIC_MAX_I32
+32b , dst = (src > dst) ? src : dst, (signed) returns previous value if TH==RET
+BUFFER_ATOMIC_MAX_I64
+64b , dst = (src > dst) ? src : dst, (signed) returns previous value if TH==RET
+BUFFER_ATOMIC_MIN_I32
+32b , dst = (src < dst) ? src : dst, (signed) returns previous value if TH==RET
+BUFFER_ATOMIC_MIN_I64
+64b , dst = (src < dst) ? src : dst, (signed) returns previous value if TH==RET
+BUFFER_ATOMIC_SUB_U32
+32b , dst -= src, returns previous value if TH==RET
+BUFFER_ATOMIC_SUB_U64
+64b , dst -= src, returns previous value if TH==RET
+BUFFER_ATOMIC_SWAP_B32
+32b , dst = src, returns previous value of dst if TH==RET
+BUFFER_ATOMIC_SWAP_B64
+64b , dst = src, returns previous value of dst if TH==RET
+BUFFER_ATOMIC_MAX_U32
+32b , dst = (src > dst) ? src : dst, (unsigned) returns previous value if TH==RET
+BUFFER_ATOMIC_MAX_U64
+64b , dst = (src > dst) ? src : dst, (unsigned) returns previous value if TH==RET
+BUFFER_ATOMIC_MIN_U32
+32b , dst = (src < dst) ? src : dst, (unsigned) returns previous value if TH==RET
+"RDNA4" Instruction Set Architecture
+9.1. Buffer Instructions
+105 of 697
+
+=== PDF PAGE 116 ===
+Opcode
+Description - all address components for buffer ops are uint
+BUFFER_ATOMIC_MIN_U64
+64b , dst = (src < dst) ? src : dst, (unsigned) returns previous value if TH==RET
+BUFFER_ATOMIC_XOR_B32
+32b , dst ^= src, returns previous value if TH==RET
+BUFFER_ATOMIC_XOR_B64
+64b , dst ^= src, returns previous value if TH==RET
+BUFFER_ATOMIC_CSUB_U32
+32b , dst = (src > dst) ? 0 : dst - src, returns previous TH must be set to RET.
+BUFFER_ATOMIC_CONDSUB_U32
+32b, dst = (src > dst) ? dst : dst - src, returns previous
+9.2. VGPR Usage
+VGPRs supply address and store-data, and they can be the destination for return data.
+Address
+Zero, one or two VGPRs are used, depending on the index-enable (IDXEN) and offset-enable (OFFEN) in the
+instruction word. These are unsigned ints.
+For 64-bit addresses the LSBs are in VGPRn and the MSBs are in VGPRn+1.
+Table 50. Address VGPRs
+IDXEN OFFEN VGPRn
+VGPRn+1
+0
+0
+nothing
+0
+1
+uint offset
+1
+0
+uint index
+1
+1
+uint index
+uint offset
+Store Data : N consecutive VGPRs, starting at VDATA. The data format specified in the instruction word’s
+opcode and D16 setting determines how many DWORDs the shader provides to store.
+Load Data : Same as stores. Data is returned to consecutive VGPRs.
+Load Data Format : Load data is 32 or 16 bits, based on the data format in the instruction or resource and D16.
+Float or normalized data is returned as floats; integer formats are returned as integers (signed or unsigned,
+same type as the memory storage format). Memory loads of data in memory that is 32 or 64 bits do not undergo
+any format conversion unless they return as 16-bit due to D16 being set to 1.
+Atomics with Return : Data is read out of the VGPR(s) starting at VDATA to supply to the atomic operation. If
+the atomic returns a value to VGPRs, that data is returned to those same VGPRs starting at VDATA.
+Table 51. Data format in VGPRs and Memory
+Instruction
+Memory Format
+VGPR Format
+Notes
+BUFFER_LOAD_U8
+ubyte
+V0[31:0] = {24’b0, byte}
+BUFFER_LOAD_D16_U8
+ubyte
+V0[15:0] = {8’b0, byte}
+writes only 16 bits
+BUFFER_LOAD_D16_HI_U8
+ubyte
+V0[31:16] = {8’h0, byte}
+writes only 16 bits
+BUFFER_LOAD_S8
+sbyte
+V0[31:0] = { 24{sign}, byte}
+BUFFER_LOAD_D16_S8
+sbyte
+V0[15:0] {8{sign}, byte}
+writes only 16 bits
+BUFFER_LOAD_D16_HI_S8
+sbyte
+V0[31:16] = {8{sign}, byte}
+writes only 16 bits
+BUFFER_LOAD_U16
+uint16
+V0[31:0] = { 16’b0, short}
+BUFFER_LOAD_S16
+int16
+V0[31:0] = { 16{sign}, short}
+BUFFER_LOAD_D16_B16
+short
+V0[15:0] = short
+writes only 16 bits
+BUFFER_LOAD_D16_HI_B16
+short
+V0[31:16] = short
+writes only 16 bits
+"RDNA4" Instruction Set Architecture
+9.2. VGPR Usage
+106 of 697
+
+=== PDF PAGE 117 ===
+Instruction
+Memory Format
+VGPR Format
+Notes
+BUFFER_LOAD_B32
+DWORD
+DWORD
+BUFFER_LOAD_FORMAT_X
+FORMAT field
+float, uint or sint
+Load X into V0[31:0]
+data type in VGPR is
+based on FORMAT
+field.
+(D16_X and D16_HI_X
+write only 16 bits)
+BUFFER_LOAD_FORMAT_XY
+FORMAT field
+float, uint or sint
+Load X,Y into V0[31:0], V1[31:0]
+BUFFER_LOAD_FORMAT_XYZ
+FORMAT field
+float, uint or sint
+Load X,Y,Z into V0[31:0], V1[31:0],
+V2[31:0]
+BUFFER_LOAD_FORMAT_XYZW
+FORMAT field
+float, uint or sint
+Load X,Y,Z,W into V0[31:0],
+V1[31:0], V2[31:0], v3[31:0]
+BUFFER_LOAD_D16_FORMAT_X
+FORMAT field
+float, uint or sint
+Load X into in V0[15:0]
+BUFFER_LOAD_D16_HI_FORMAT_X
+FORMAT field
+float, uint16 or int16
+Load X into in V0[31:16]
+BUFFER_LOAD_D16_FORMAT_XY
+FORMAT field
+float, uint16 or int16
+Load X,Y into in V0[15:0], V0[31:16]
+BUFFER_LOAD_D16_FORMAT_XYZ
+FORMAT field
+float, uint16 or int16
+Load X,Y,Z into in V0[15:0],
+V0[31:16], V1[15:0]
+BUFFER_LOAD_D16_FORMAT_XYZW
+FORMAT field
+float, uint16 or int16
+Load X,Y,Z,W into in V0[15:0],
+V0[31:16], V1[15:0], V1[31:16]
+Where "V0" is the VDATA VGPR; V1 is the VDATA+1 VGPR, etc.
+Instruction
+VGPR Format
+Memory Format
+Notes
+BUFFER_STORE_B8
+byte in [7:0]
+byte
+BUFFER_STORE_D16_HI_B8
+byte in [23:16]
+byte
+BUFFER_STORE_B16
+short in [15:0]
+short
+BUFFER_STORE_D16_HI_B16
+short in [31:16]
+short
+BUFFER_STORE_B32
+data in [31:0]
+DWORD
+BUFFER_STORE_FORMAT_X
+float, uint or sint
+data in V0[31:0]
+FORMAT field
+data type in VGPR is
+based on FORMAT
+field.
+BUFFER_STORE_D16_FORMAT_X
+float, uint16 or int16
+data in V0[15:0]
+BUFFER_STORE_D16_FORMAT_XY
+float, uint16 or int16
+data in V0[15:0], V0[31:16]
+BUFFER_STORE_D16_FORMAT_XYZ
+float, uint16 or int16
+data in V0[15:0], V0[31:16],
+V1[15:0]
+BUFFER_STORE_D16_FORMAT_XYZW
+float, uint16 or int16
+data in V0[15:0], V0[31:16],
+V1[15:0], V1[31:16]
+BUFFER_STORE_D16_HI_FORMAT_X
+float, uint16 or int16
+data in V0[31:16]
+"RDNA4" Instruction Set Architecture
+9.2. VGPR Usage
+107 of 697
+
+=== PDF PAGE 118 ===
+9.3. Buffer Data
+The amount and type of data that is loaded or stored is controlled by the following: the resource format field,
+destination-component-selects (dst_sel), and the opcode.
+Data-format can come from the resource, instruction fields, or the opcode itself. Typed buffer ops derive data-
+format from the instruction’s FORMAT field, untyped "format" instructions use FORMAT from the resource,
+and other buffer opcodes derive data-format from the instruction itself. DST_SEL comes from the resource, but
+is ignored for many operations.
+Table 52. Buffer Instructions
+Instruction
+Data Format
+DST SEL
+TBUFFER_LOAD_FORMAT_*
+instruction
+identity
+TBUFFER_STORE_FORMAT_*
+instruction
+identity
+BUFFER_LOAD_FORMAT_*
+resource
+resource
+BUFFER_STORE_FORMAT_*
+resource
+resource
+BUFFER_LOAD_<type>
+derived
+identity
+BUFFER_STORE_<type>
+derived
+identity
+BUFFER_ATOMIC_*
+derived
+identity
+Instruction : The instruction’s format field is used instead of the resource’s fields.
+Data format derived : The data format is derived from the opcode and ignores the resource definition. For
+example, BUFFER_LOAD_U8 sets the data-format to uint-8.
+
+The resource’s data format must not be INVALID; that format has specific meaning
+(unbound resource), and for that case the data format is not replaced by the instruction’s
+implied data format.
+DST_SEL identity : Depending on the number of components in the data-format, this is: X000, XY00, XYZ0, or
+XYZW.
+When the shader provides fewer components than the surface format, the first component is replicated to fill
+in the missing ones. E.g. if the surface has 4 components and the shader only supplies X and Y, the result is
+written with XYXX.
+9.3.1. D16 Instructions
+Load and store instructions also come in a "D16" variant. The D16 buffer instructions allow a shader program to
+load or store just 16 bits per work-item between VGPRs and memory. For stores, each 32bit VGPR holds two
+16bit data elements that are passed to the texture unit which in turn, converts to the buffer format before
+writing to memory. For loads, data returned from the texture unit is converted to 16 bits and a pair of data are
+stored in each 32bit VGPR (LSBs first, then MSBs). Control over int vs. float is controlled by FORMAT.
+Conversion of float32 to float16 uses truncation; conversion of other input data formats uses round-to-nearest-
+even.
+There are two variants of these instructions:
+• D16 loads data into or stores data from the lower 16 bits of a VGPR.
+"RDNA4" Instruction Set Architecture
+9.3. Buffer Data
+108 of 697
+
+=== PDF PAGE 119 ===
+• D16_HI loads data into or stores data from the upper 16 bits of a VGPR.
+For example, BUFFER_LOAD_D16_U8 loads a byte per work-item from memory, converts it to a 16-bit integer,
+then loads it into the lower 16 bits of the data VGPR.
+9.3.2. LOAD/STORE_FORMAT and DATA-FORMAT mismatches
+The "format" instructions specify a number of elements (x, xy, xyz or xyzw) and this could mismatch with the
+number of elements in the data format specified in the instruction’s or resource’s data-format field. When that
+happens.
+• buffer_load_format_x and dfmt is "32_32_32_32" : load 4 DWORDs from memory, but only load first into
+the shader.
+• buffer_store_format_x and dfmt is "32_32_32_32" : stores "x" to all non-constant channels in memory if "x"
+is sent from shader, stores 0 otherwise.
+• buffer_load_format_xyzw and dfmt is "32" : load 1 DWORD from memory, return 4 to shader (dst_sel).
+• buffer_store_format_xyzw and dfmt is "32" : store 1 DWORD (X) to memory, ignore YZW.
+9.4. Buffer Addressing
+A buffer is a data structure in memory that is addressed with an index and an offset. The index points to a
+particular record of size stride bytes, and the offset is the byte-offset within the record. The stride comes from
+the resource, the index from a VGPR (or zero), and the offset from an SGPR or VGPR and also from the
+instruction itself.
+Table 53. BUFFER Instruction Fields for Addressing
+Field
+Size Description
+IOFFSET 24
+Literal byte offset from the instruction.
+IDXEN
+1
+Boolean: get per-lane index from VGPR when true, or no index when false.
+OFFEN
+1
+Boolean: get per-lane offset from VGPR when true, or no offset when false. Note that IOFFSET is present
+regardless of this bit.
+The "element size" for a buffer instruction is the amount of data the instruction transfers. It is determined by
+the FORMAT field for typed-buffer instructions, or from the opcode for untyped-buffer instructions, and is: 1,
+2, 4, 8, 12 or 16 bytes. For example, format "16_16" has an element size of 4-bytes.
+Table 54. Buffer Resource Constant Fields for Addressing
+Field
+Size
+Description
+const_base
+48
+Base address of the buffer resource, in bytes.
+const_stride
+14
+Stride of the record in bytes, then multiplied by stride_scale.
+const_num_records
+32
+Number of records in the buffer. In units of:
+Bytes if: const_stride ⇐ 1, otherwise, in units of "stride".
+const_add_tid_enable
+1
+Boolean. Add thread_ID within the wave to the index when true.
+const_swizzle_enable
+2
+Swizzle AOS (Array of Structures) according to stride, index_stride and element_size:
+0: disabled
+1: enabled with element_size = 4-byte
+2: Reserved
+3: enabled with element_size = 16-byte
+"RDNA4" Instruction Set Architecture
+9.4. Buffer Addressing
+109 of 697
+
+=== PDF PAGE 120 ===
+Field
+Size
+Description
+const_index_stride
+2
+Used only when const_swizzle_en = true. Number of contiguous indices for a single
+element (of const_element_size=4 or 16 bytes) before switching to the next element.
+8, 16, 32 or 64 indices.
+Table 55. Address Components from GPRs
+Field
+Size Description
+SGPR_offset
+32
+An unsigned byte-offset to the address. Comes from an SGPR or M0.
+VGPR_offset
+32
+An optional unsigned byte-offset. It is per-thread, and comes from a VGPR.
+VGPR_index
+32
+An optional index value. It is per-thread and comes from a VGPR.
+The final buffer memory address is composed of three parts:
+• the base address from the buffer resource (V#),
+• the offset from the SGPR, and
+• a buffer-offset that is calculated differently, depending on whether the buffer is linearly addressed (a
+simple Array-of-Structures calculation) or is swizzled.
+Address Calculation for a Linear Buffer
+9.4.1. Range Checking
+Buffer addresses are checked against the size of the memory buffer. Loads that are out of range return zero,
+and stores and atomics are dropped. Range checking is per-component for non-formatted loads and stores that
+are larger than one DWORD. Note that load/store_B64, B96 and B128 are considered "2-DWORD/3-DWORD/4-
+DWORD load/store", and each DWORD is bounds checked separately. The method of clamping is controlled by
+a 2-bit field in the buffer resource: OOB_SELECT (Out of Bounds select).
+Payload below is the number of bytes the instruction transfers.
+Table 56. Buffer Out Of Bounds Selection
+OOB
+SELECT
+Out of Bounds if:
+Description or use
+0
+(index >= NumRecords) || (offset+payload > stride)
+structured buffers
+1
+(index >= NumRecords)
+Raw buffers
+2
+(NumRecords == 0)
+do not check bounds (except
+empty buffer)
+"RDNA4" Instruction Set Architecture
+9.4. Buffer Addressing
+110 of 697
+
+=== PDF PAGE 121 ===
+OOB
+SELECT
+Out of Bounds if:
+Description or use
+3
+Bounds check:
+if (swizzle_en && const_stride != 0x0)
+   OOB = (index >= NumRecords || (offset+payload > stride))
+else
+   OOB = (offset+payload > NumRecords)
+Raw
+In this mode, "num_records" is
+reduced by "sgpr_offset"
+Notes:
+1. Loads that go out-of-range return zero (except for components with V#.dst_sel = SEL_1 that return 1).
+2. Stores that are out-of-range do not store anything.
+3. Load/store-format-* instruction and atomics are range-checked "all or nothing" - either entirely in or out.
+4. Load/store-B{64,96,128} and range-check per component.
+For typed-buffer, if any component of the thread is out of bounds, the whole thread is considered out of
+bounds and returns zero. For untyped-buffer, only the components that are out of bounds return zero.
+9.4.1.1. Structured Buffer
+The address calculation for swizzle_en==0 is:  (unswizzled structured buffer)
+   ADDR = Base  + baseOff + Ioff +  Stride * Vidx  + (OffEn ? Voff : 0)
+          V#      SGPR      INST      V#     VGPR     INST    VGPR
+NumRecords for structured buffer is in units of stride.
+9.4.1.2. Raw Buffer
+   ADDR = Base  + baseOff + Ioff +  (OffEn ? Voff : 0)
+          V#      SGPR      INST      INST   VGPR
+NumRecords for raw buffer is in units of bytes. This is an exact range check, meaning it includes the payload
+and handles multi-DWORD and unaligned correctly. The stride field is ignored.
+9.4.1.3. Scratch Buffer
+The address calculation for swizzle_en = 0 is…(unswizzled scratch buffer)
+   ADDR = Base  + baseOffset + Ioff +  Stride * TID +  (OffEn ? Voff : 0)
+          V#      SGPR          INST      V#    0..63    INST    VGPR
+Swizzle of scratch buffer is also supported (and is typical). The MSBs of the TID (TID / 64) is folded into
+baseOffset. No range checking (using OOB mode 2).
+"RDNA4" Instruction Set Architecture
+9.4. Buffer Addressing
+111 of 697
+
+=== PDF PAGE 122 ===
+9.4.1.4. Scalar Memory
+Scalar memory does the following, that works with RAW buffers and unswizzled structured buffers:
+Addr =   Base  +   offset
+           V#       SGPR or Inst
+Address Out-of-Range if: offset >= ( (stride==0 ? 1 : stride) * num_records).
+Notes
+1. Loads that go out-of-range return zero (except for components with V#.dst_sel = SEL_1 that return 1).
+Stores that are out of range do not store anything.
+2. Atomics and Load/store-format-* instruction are range-checked "all or nothing" - either entirely in or out.
+3. Load/store-DWORD-x{2,3,4} perform range-check per component.
+9.4.2. Swizzled Buffer Addressing
+Swizzled addressing rearranges the data in the buffer that may improve cache locality for arrays of structures.
+A single fetch instruction must not fetch a unit larger than const_element_size. The buffer’s STRIDE must be a
+multiple of const_element_size.
+const_element_size is either 4 or 16 bytes, depending on the setting of V#.swizzle_enable
+Index        = (IDXEN ? vgpr_index : 0) + (const_add_tid_enable ? thread_id[5:0] : 0)
+index_msb      = index / const_index_stride
+index_lsb      = index % const_index_stride
+total_offset   = ( (OFFEN ? vgpr_offset : 0) + IOFFSET + sgpr_offset) & 32'hffffffff
+offset_msb     = total_offset / const_element_size
+offset_lsb     = total_offset % const_element_size
+buffer_offset  = (index_msb * const_stride + offset_msb * const_element_size) * const_index_stride +
+                  index_lsb * const_element_size + offset_lsb
+Final Address = const_base + buffer_offset
+Restrictions and behavior with swizzled buffers:
+• 16-byte elements are not supported with const_swizzle_en==3 (16byte)
+• For 16-byte elements that are only DWORD-aligned, addresses to higher dwords are offset linearly from the
+address of the first dword
+Example of Buffer Swizzling
+"RDNA4" Instruction Set Architecture
+9.4. Buffer Addressing
+112 of 697
+
+=== PDF PAGE 123 ===
+9.5. Alignment
+Formatted ops such as BUFFER_LOAD_FORMAT_* must be aligned as follows:
+• 1-byte formats require 1-byte alignment
+• 2-byte formats require 2-byte alignment
+• 4-byte and larger formats require 4-byte alignment
+Memory alignment enforcement for non-formatted ops is controlled by a configuration register:
+SH_MEM_CONFIG.alignment_mode.
+Atomics must be aligned to the data size, or they trigger a MEMVIOL.
+Options are:
+0. : DWORD - hardware automatically aligns request to the smaller of: element-size or DWORD.
+"RDNA4" Instruction Set Architecture
+9.5. Alignment
+113 of 697
+
+=== PDF PAGE 124 ===
+For DWORD or larger loads or stores of non-formatted ops (such as BUFFER_LOAD_DWORD), the two
+LSBs of the byte-address are ignored, thus forcing DWORD alignment. For ATOMICs this forces the
+required alignment by ignoring the LSBs until the atomic is payload aligned, this means 8-byte ATOMIC
+operations are forced to a greater alignment than DWORD.
+1. : DWORD_STRICT - must be aligned to the smaller of: element-size or DWORD.
+2. : STRICT - access must be aligned to data size
+3. : UNALIGNED - any alignment is allowed (but atomics must still be aligned)
+9.6. Buffer Resource
+The buffer resource (V#) describes the location of a buffer in memory and the format of the data in the buffer.
+It is specified in four consecutive SGPRs (4-SGPR aligned) and sent to the texture cache with each buffer
+instruction.
+The table below details the fields that make up the buffer resource descriptor.
+Table 57. Buffer Resource Descriptor
+Bits
+Size
+Name
+Description
+47:0
+48
+Base address
+Byte address.
+61:48
+14
+Stride
+Bytes 0 to 16383 (modified by Stride Scale)
+63:62
+2
+swizzle Enable
+Swizzle AOS according to stride, index_stride and element_size; otherwise
+linear.
+0: disabled
+1: enabled with element_size = 4byte
+2: Reserved
+3: enabled with element_size = 16byte
+95:64
+32
+Num_records
+In units of stride if (stride >=1), else in bytes.
+98:96
+3
+Dst_sel_x
+Destination channel select:
+0=0, 1=1, 4=R, 5=G, 6=B, 7=A
+101:99
+3
+Dst_sel_y
+104:102
+3
+Dst_sel_z
+107:105
+3
+Dst_sel_w
+113:108
+6
+Format
+Memory data type. Used only by Untyped-buffer "FORMAT" instructions.
+115:114
+2
+Stride Scale
+Multiply the stride field by: 0: x1; 1: x4; 2: x8; 3: x32.
+118:117
+2
+Index stride
+0:8, 1:16, 2:32, or 3:64. Used for swizzled buffer addressing.
+119
+1
+Add tid enable
+Add thread ID to the index for to calculate the address.
+120
+1
+Write Compression
+Enable
+1 = enable write compression, 0 = disabled
+121
+1
+Compression Enable 0 = bypass compression (resource is not compressible);
+1 = don’t bypass compression
+123:122
+2
+Compression Access
+Mode
+0 = normal
+1 = force existing data to compress
+2 = compressed data access
+3 = metadata access
+125:124
+2
+OOB_SELECT
+Out of bounds select.
+127:126
+2
+Type
+Value == 0 for buffer. Overlaps upper two bits of four-bit TYPE field in
+128-bit V# resource.
+Unbound Resources
+"RDNA4" Instruction Set Architecture
+9.6. Buffer Resource
+114 of 697
+
+=== PDF PAGE 125 ===
+This is keyed off the "data-format" being set to zero (INVALID), and for untyped-buffer the "add_tid_en = false".
+Resource - Instruction mismatch
+If the resource type and instruction mismatch (e.g. a buffer resource with an image instruction, or an image
+resource with a buffer instruction), the instruction is ignored (loads return nothing and stores do not alter
+memory).
+"RDNA4" Instruction Set Architecture
+9.6. Buffer Resource
+115 of 697
+

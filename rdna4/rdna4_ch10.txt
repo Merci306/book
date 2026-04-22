@@ -1,0 +1,1852 @@
+=== PDF PAGE 126 ===
+Chapter 10. Vector Memory Image Instructions
+Vector Memory (VMEM) Image operations transfer data between the VGPRs and memory through the texture
+cache. Image operations support access to image objects such as texture maps and typed surfaces. Image-
+Sample operations read multiple elements from a surface and combine them to produce a single result per
+lane.
+Image objects are accessed using from one to four dimensional addresses; they are composed of homogeneous
+samples, each sample containing one to four elements. These image objects are read from, or written to, using
+IMAGE_* or SAMPLE_* instructions, all of which use the VIMAGE or VSAMPLE instruction formats.
+IMAGE_LOAD instructions load an element from the image buffer directly into VGPRS, and SAMPLE
+instructions use sampler constants (S#) and apply filtering to the data after it is read. IMAGE_ATOMIC
+instructions combine data from VGPRs with data already in memory, and optionally return the value that was
+in memory before the operation.
+VMEM image operations use an image resource constant (T#) that is a 128-bit or 256-bit value in SGPRs. This
+constant is sent to the texture cache when the instruction is executed. This constant defines the address, data
+format, and characteristics of the surface in memory. Some image instructions also use a sampler constant that
+is a 128-bit constant in SGPRs. Typically, these constants are fetched from memory using scalar memory loads
+prior to executing VM instructions, but these constants can also be generated within the shader.
+Texture fetch instructions have a data mask (DMASK) field. DMASK specifies how many data components it
+receives. If DMASK is less than the number of components in the texture, the texture unit only sends DMASK
+components, starting with R, then G, B, and A. if DMASK specifies more than the texture format specifies, the
+shader receives data based on T#.DST_SEL for the missing components. Image ops do not generate MemViol -
+instead they apply clamp modes if the address goes out of range.
+Memory operations of different types (e.g. loads, stores and samples) can complete out of order with respect to
+each other.
+10.1. Image Instructions
+This section describes the image instruction set, and the microcode fields available to those instructions.
+Image instruction are divided into two categories based on instruction encoding: VIMAGE and VSAMPLE.
+VIMAGE Instructions
+IMAGE_LOAD_{-, PCK, PCK_SGN}
+IMAGE_LOAD_MIP_{-, PCK, PCK_SGN }
+Load data from an image object
+Load data from an image object from a specified mip level.
+IMAGE_STORE
+IMAGE_STORE_PCK
+IMAGE_STORE_MIP
+IMAGE_STORE_MIP_PCK
+Store data to an image object to a specific mipmap level
+"RDNA4" Instruction Set Architecture
+10.1. Image Instructions
+116 of 697
+
+=== PDF PAGE 127 ===
+VIMAGE Instructions
+IMAGE_ATOMIC_SWAP
+IMAGE_ATOMIC_CMPSWAP
+IMAGE_ATOMIC_ADD
+IMAGE_ATOMIC_SUB
+IMAGE_ATOMIC_SMIN
+IMAGE_ATOMIC_UMIN
+IMAGE_ATOMIC_SMAX
+IMAGE_ATOMIC_UMAX
+IMAGE_ATOMIC_AND
+IMAGE_ATOMIC_OR
+IMAGE_ATOMIC_XOR
+IMAGE_ATOMIC_INC
+IMAGE_ATOMIC_DEC
+IMAGE_ATOMIC_ADD_F32
+IMAGE_ATOMIC_MIN_F32
+IMAGE_ATOMIC_MAX_F32
+IMAGE_ATOMIC_PK_ADD_F16
+IMAGE_ATOMIC_PK_ADD_BF16
+Image atomic operations
+IMAGE_GET_RESINFO
+Return resource info into 4 VGPRs for the MIP level specified. These are 32bit
+integer values:
+VDATA3-0 = { #mipLevels, depth, height, width }
+For cubemaps, depth = 6 * Number_of_array_faces.
+(DX expects the # of cubes, but gets # of faces instead)
+BVH ops
+All Ray tracing BVH instructions.
+See: Ray Tracing Instructions
+VSAMPLE Instructions
+IMAGE_SAMPLE_*
+IMAGE_SAMPLE_*_G16
+Load and filter data from a image object
+Sample with 16-bit gradients
+IMAGE_GATHER4_*
+Load and return samples from 4 texels for software filtering. Returns a single
+component, starting with the lower-left texel and in counter-clockwise order.
+IMAGE_GATHER4H
+4H: fetch 1 component per texel from 4x1 texels
+"DMASK" selects which component to load (R,G,B,A) and must have only one bit
+set to 1.
+IMAGE_MSAA_LOAD
+Load up to 4 samples of 1 component from an MSAA resource with a user-
+specified fragment ID.
+Uses DMASK as component select - it behaves like gather4 ops and returns 4
+VGPR (2 if D16=1).
+SAMP should be set to NULL since this operation does not use a sampler.
+IMAGE_GET_LOD
+Return the calculated LOD. Treated as a Sample instruction.
+Returns the "raw" LOD and the "clamped" LOD into VDATA as two 32 bit floats:
+First VGPR = clampLOD
+Second VGPR = rawLOD
+Table 58. Instruction Fields
+"RDNA4" Instruction Set Architecture
+10.1. Image Instructions
+117 of 697
+
+=== PDF PAGE 128 ===
+Instruction Fields
+Field
+Size
+Description
+OP
+8
+Opcode
+DIM
+3
+Surface Dimension:
+0: 1D
+4: 1d array
+1: 2D
+5: 2d array
+2: 3D
+6: 2d MSAA
+3: cube
+7: 2d MSAA array
+DMASK
+4
+Data VGPR enable mask: 1 .. 4 consecutive VGPRs
+Loads: defines which components are returned: 0=red,1=green,2=blue,3=alpha
+Stores: defines which components are written with data from VGPRs (missing components get
+the value of the X component).
+Enabled components come from consecutive VGPRs.
+E.G. DMASK=1001 : Red is in VGPRn and alpha in VGPRn+1.
+For D16 loads, DMASK indicates which components to return;
+For D16 stores, the DMASK the mask indicates which components to store but has restrictions:
+Data is read out of consecutive VGPRs: LSB’s of VDATA, then MSB’s of VDATA then LSB’s
+of VDATA+1 and last if needed MSB’s of VDATA+1. This is regardless of which DMASK bits
+are set, only how many bits are set. The position of the DMASK bits controls which components
+are written in memory.
+If DMASK==0, the TA overrides DMASK=1 and puts zeros in VGPR followed by LWE status if exists. TFE
+status is not generated since the fetch is dropped.
+For IMAGE_GATHER4* instructions, DMASK indicates which component (RGBA), and the
+number of VGPRs to use is determined automatically by hardware (4 VGPRs when D16=0, and 2
+VGPRs when D16=1).
+R128
+1
+Texture Resource Size: 1 = 128bits, 0 = 256bits
+A16
+1
+Address components are 16-bits (instead of the usual 32 bits).
+When set, all address components are 16 bits (packed into 2 per DWORD), except:
+Texel offsets (3 6bit UINT packed into 1 DWORD)
+PCF reference (for "_C" instructions)
+Address components are 16b uint for image ops without sampler; 16b float with sampler.
+D16
+1
+VGPR-Data-16bit. On loads, convert data in memory to 16-bit format before storing it in VGPRs.
+For stores, convert 16-bit data in VGPRs to the memory format before going to memory. Whether
+the data is treated as float or int is decided by NFMT. Allowed only with these opcodes:
+• IMAGE_SAMPLE*
+• IMAGE_GATHER4
+• IMAGE_MSAA_LOAD
+• IMAGE_LOAD
+• IMAGE_LOAD_MIP
+• IMAGE_STORE
+• IMAGE_STORE_MIP
+VDATA
+8
+Address of VGPR to supply first component of store-data or receive first component of load-data.
+0-255.
+RSRC
+9
+Specifies which SGPR supplies T# (resource constant) in four consecutive SGPRs. Must be a
+multiple of 4, in the range 0-120.
+SCOPE
+2
+Memory Scope
+TH
+3
+Memory Temporal Hint
+TFE
+1
+Texel Fault Enable for PRT (Partially Resident Textures). When set, fetch may return a NACK that
+causes a VGPR write into DST+1 (first GPR after all fetch-dest gprs).
+Fields Available only in VIMAGE
+"RDNA4" Instruction Set Architecture
+10.1. Image Instructions
+118 of 697
+
+=== PDF PAGE 129 ===
+Instruction Fields
+VADDR0-4
+5 x 8
+Five 8-bit VGPR address fields. Each one provides one or a consecutive group of address VGPRs.
+Fields Available only in VSAMPLE
+VADDR0-3
+4 x 8
+Four 8-bit VGPR address fields. Each one provides one or a consecutive group of address VGPRs.
+SAMP
+9
+Specifies which SGPR supplies S# (sampler constant) in four consecutive SGPRs. Must be a
+multiple of 4, in the range 0-120.
+UNRM
+1
+Force address to be un-normalized. Must be set to 1 for Image stores & atomics.
+0: for image ops with samplers, S,T,R from [0.0, 1.0] span the entire texture map;
+1: for image ops with samplers, S,T,R from [0.0 to N] span the texture map, where N is width,
+height or depth. Array/cube slice, lod, bias etc. are not affected. Image ops without sampler are
+not affected. UINT inputs are "unnormalized".
+This bit is logically OR’d with the S#.force_unnormalized bit.
+LWE
+1
+LOD Warning Enable. When set to 1, a texture fetch may return "LOD_CLAMPED = 1", and causes
+a VGPR write into DST+1 (first GPR after all fetch-dest gprs). LWE only works for sampler ops;
+LWE is ignored for non-sampler ops.
+10.1.1. Texture Fault Enable (TFE) and LOD Warning Enable (LWE)
+This is related to "Partially Resident Textures".
+When either of these bits are set in the instruction, any texture fetch may return one extra VGPR after all of the
+data-return VGPRs. This data is returned uniquely to each thread and indicates the error / warning status of
+that thread and nothing is returned if no thread experiences a texture fault or LOD warning.
+The data returned is: TEXEL_FAIL | (LOD_WARNING << 1) | (LOD << 16)
+• TEXEL_FAIL : 1 bit indicating that 1 or more texels for this pixel produced a NACK.
+"failure" means accessing an unmapped page.
+◦TFE == 0
+▪TEX writes the data for threads that didn’t NACK to VGPR DST
+▪TEX writes zeros or the result of blend using zeros for samples that NACKed to VGPR DST
+◦TFE == 1
+▪VGPR DST is written similar to above
+▪TEX writes to VGPR DST+1 with a status where the bits corresponding to threads that NACKed are
+set to 1
+• LOD_WARNING : 1 bit indicating a that a pixel attempted to access a texel at too small a LOD:
+warn = ( LOD < T#.min_lod_warning)
+• LOD : indicates which LOD was attempted to be accessed that caused the NACK. Returns the floor of the
+requested LOD.
+A pixel cannot receive both TEXEL_FAIL and LOD_WARNING: TEXEL_FAIL takes precedence.
+10.1.2. D16 Instructions
+Load-format and store-format instructions also come in a "D16" variant. For stores, each 32-bit VGPR holds two
+16-bit data elements that are passed to the texture unit. The texture unit converts them to the texture format
+before writing to memory. For loads, data returned from the texture unit is converted to 16 bits, and a pair of
+data are stored in each 32- bit VGPR (LSBs first, then MSBs). The DMASK bit represents individual 16- bit
+elements; so, when DMASK=0011 for an image-load, two 16-bit components are loaded into a single 32-bit
+"RDNA4" Instruction Set Architecture
+10.1. Image Instructions
+119 of 697
+
+=== PDF PAGE 130 ===
+VGPR.
+10.1.3. A16 Instructions
+The A16 instruction bit indicates that the address components are 16 bits instead of the usual 32 bits.
+Components are packed such that the first address component goes into the low 16 bits ([15:0]), and the next
+into the high 16 bits ([31:16]).
+10.1.4. G16 Instructions
+The instructions with "G16" in the name mean the user provided derivatives are 16 bits instead of the usual 32
+bits. Derivatives are packed such that the first derivative goes into the low 16 bits ([15:0]), and the next into the
+high 16 bits ([31:16]).
+10.2. Image Opcodes with No Sampler
+For image opcodes with no sampler, all VGPR address values are taken as uint.
+For cubemaps, face_id = slice * 6 + face.
+MSAA surfaces support only load, store and atomics; not load-mip or store-mip.
+The table below shows the contents of address VGPRs for the various image opcodes.
+Opcode
+a16[0] type
+acnt
+VGPRn[31:0]
+VGPRn+1[31:0]
+VGPRn+2[31:0]
+VGPRn+3[31:0]
+GET_RESINFO
+x
+Any
+0
+mipid
+LOAD
+LOAD_PCK
+LOAD_PCK_SGN
+STORE
+STORE_PCK
+0
+1D
+0
+s
+2D
+1
+s
+t
+3D
+2
+s
+t
+r
+Cube/Cube Array 2
+s
+t
+face
+1D Array
+1
+s
+slice
+2D Array
+2
+s
+t
+slice
+2D MSAA
+2
+s
+t
+fragid
+2D Array MSAA
+3
+s
+t
+slice
+fragid
+1
+1D
+0
+-, s
+2D
+1
+t, s
+3D
+2
+t, s
+-, r
+Cube/Cube Array 2
+t, s
+-, face
+1D Array
+1
+slice, s
+2D Array
+2
+t, s
+-, slice
+2D MSAA
+2
+t, s
+-, fragid
+2D Array MSAA
+3
+t, s
+fragid, slice
+"RDNA4" Instruction Set Architecture
+10.2. Image Opcodes with No Sampler
+120 of 697
+
+=== PDF PAGE 131 ===
+Opcode
+a16[0] type
+acnt
+VGPRn[31:0]
+VGPRn+1[31:0]
+VGPRn+2[31:0]
+VGPRn+3[31:0]
+ATOMIC
+0
+1D
+0
+s
+2D
+1
+s
+t
+3D
+2
+s
+t
+r
+1D Array
+1
+s
+slice
+2D Array
+2
+s
+t
+slice
+2D MSAA
+2
+s
+t
+fragid
+2D Array MSAA
+3
+s
+t
+slice
+fragid
+1
+1D
+0
+-, s
+2D
+1
+t, s
+3D
+2
+t, s
+-, r
+1D Array
+1
+slice, s
+2D Array
+2
+t, s
+-, slice
+2D MSAA
+2
+t, s
+-, fragid
+2D Array MSAA
+3
+t, s
+fragid, slice
+LOAD_MIP
+LOAD_MIP_PCK
+LOAD_MIP_PCK_SGN
+STORE_MIP
+STORE_MIP_PCK
+0
+1D
+1
+s
+mipid
+2D
+2
+s
+t
+mipid
+3D
+3
+s
+t
+r
+mipid
+Cube/Cube Array 3
+s
+t
+face
+mipid
+1D Array
+2
+s
+slice
+mipid
+2D Array
+3
+s
+t
+slice
+mipid
+1
+1D
+1
+mipid, s
+2D
+2
+t, s
+-, mipid
+3D
+3
+t, s
+mipid, r
+Cube/Cube Array 3
+t, s
+mipid, face
+1D Array
+2
+slice, s
+-, mipid
+2D Array
+3
+t, s
+mipid, slice
+• Image_Load : image_load, image_load_mip, image_load_{pck, pck_sgn, mip_pck, mip_pck_sgn}
+• Image_Store: image_store, image_store_mip
+• Image_Atomic_*: swap, cmpswap, add, sub, {u,s}{min,max}, and, or, xor, inc, dec, add_f32, min_f32,
+max_f32.
+"ACNT" is the Address Count: the number of VGPRs that supply the "body" of the address, derived from the
+instruction’s DIM field and the opcode.
+10.3. Image Opcodes with a Sampler
+Opcodes with a sampler: all VGPR address values are taken as FLOAT except for Texel-offset, which are UINT.
+For cubemaps, face_id = slice * 8 + face.
+(Note that the "*8" differs from the non-sampler case which is "*6").
+Certain sample and gather opcodes require additional values from VGPRs beyond what is shown in the table
+below. These values are: offset, bias, z-compare and gradients. Please see the next section for details. MSAA
+surfaces do not support sample or gather4 operations. MSAA_LOAD does not use a sampler, but uses the
+VSAMPLE instruction encoding (users should set SAMP = NULL).
+"RDNA4" Instruction Set Architecture
+10.3. Image Opcodes with a Sampler
+121 of 697
+
+=== PDF PAGE 132 ===
+Opcode
+a16[0] acnt type
+VGPRn[31:0]
+VGPRn+1[31:0]
+VGPRn+2[31:0]
+VGPRn+3[31:0]
+Sample
+GetLod
+0
+0
+1D
+s
+1
+2D
+s
+t
+2
+3D
+s
+t
+r
+2
+Cube(Array)
+s
+t
+face
+1
+1D Array
+s
+slice
+2
+2D Array
+s
+t
+slice
+1
+0
+1D
+-, s
+1
+2D
+t, s
+2
+3D
+t, s
+-, r
+2
+Cube(Array)
+t, s
+-, face
+1
+1D Array
+slice, s
+2
+2D Array
+t, s
+-, slice
+Sample "_L":
+0
+1
+1D
+s
+lod
+2
+2D
+s
+t
+lod
+3
+3D
+s
+t
+r
+lod
+3
+Cube(Array)
+s
+t
+face
+lod
+2
+1D Array
+s
+slice
+lod
+3
+2D Array
+s
+t
+slice
+lod
+1
+1
+1D
+lod, s
+2
+2D
+t, s
+-, lod
+3
+3D
+t, s
+lod, r
+3
+Cube(Array)
+t, s
+lod, face
+2
+1D Array
+slice, s
+-, lod
+3
+2D Array
+t, s
+lod, slice
+Sample "_CL":
+0
+1
+1D
+s
+clamp
+2
+2D
+s
+t
+clamp
+3
+3D
+s
+t
+r
+clamp
+3
+Cube(Array)
+s
+t
+face
+clamp
+2
+1D Array
+s
+slice
+clamp
+3
+2D Array
+s
+t
+slice
+clamp
+1
+1
+1D
+clamp, s
+2
+2D
+t, s
+-, clamp
+3
+3D
+t, s
+clamp, r
+3
+Cube(Array)
+t, s
+clamp, face
+2
+1D Array
+slice, s
+-, clamp
+3
+2D Array
+t, s
+clamp, slice
+Gather
+0
+1
+2D
+s
+t
+2
+Cube(Array)
+s
+t
+face
+2
+2D Array
+s
+t
+slice
+1
+1
+2D
+t, s
+2
+Cube(Array)
+t, s
+-, face
+2
+2D Array
+t, s
+-, slice
+"RDNA4" Instruction Set Architecture
+10.3. Image Opcodes with a Sampler
+122 of 697
+
+=== PDF PAGE 133 ===
+Opcode
+a16[0] acnt type
+VGPRn[31:0]
+VGPRn+1[31:0]
+VGPRn+2[31:0]
+VGPRn+3[31:0]
+Gather "_L"
+0
+2
+2D
+s
+t
+lod
+3
+Cube(Array)
+s
+t
+face
+lod
+3
+2D Array
+s
+t
+slice
+lod
+1
+2
+2D
+t, s
+-, lod
+3
+Cube(Array)
+t, s
+lod, face
+3
+2D Array
+t, s
+lod, slice
+Gather "_CL"
+0
+2
+2D
+s
+t
+clamp
+3
+Cube(Array)
+s
+t
+face
+clamp
+3
+2D Array
+s
+t
+slice
+clamp
+1
+2
+2D
+t, s
+-, clamp
+3
+Cube(Array)
+t, s
+clamp, face
+3
+2D Array
+t, s
+clamp, slice
+MSAA_LOAD
+0
+2
+2D MSAA
+s
+t
+fragid
+3
+2D Array
+MSAA
+s
+t
+slice
+fragid
+1
+2
+2D MSAA
+t, s
+-, fragid
+3
+2D Array
+MSAA
+t, s
+fragid, slice
+The table below lists and briefly describes the legal suffixes for image instructions:
+Table 59. Sample Instruction Suffix Key
+Suffix
+Meaning
+Extra Addresses
+Description
+_L
+LOD
+-
+LOD is used instead of computed LOD.
+_B
+LOD BIAS
+1: lod bias
+Add this BIAS to the computed LOD.
+_CL
+LOD CLAMP
+-
+Clamp the computed LOD to be no larger than this value.
+_D
+Derivative
+2,4 or 6: slopes
+Send dx/dv, dx/dy, etc. slopes to be used in LOD computation.
+_LZ
+Level 0
+-
+Force use of MIP level 0.
+_C
+PCF
+1: z-comp
+Percentage closer filtering.
+_O
+Offset
+1: offsets
+Send X, Y, Z integer offsets (packed into 1 DWORD) to offset XYZ address.
+_G16
+Gradient 16b
+-
+Gradients are 16-bits instead of 32-bits, packed 2 gradients per VGPR (dX in
+low 16bits, dY in high 16bits).
+10.4. VGPR Usage
+Address: The address consists of up to 5 parts: { offset } { bias } { z-compare } { derivative } { body }
+These are all in VGPRs, and can consist of up to 12 values.
+• Offset: SAMPLE*O*, GATHER*O*
+1 DWORD of 'offset_xyz' . The offsets are 6-bit signed integers: X=[5:0], Y=[13:8], Z=[21:16]
+• Bias: SAMPLE*B*, GATHER*B*. 1 DWORD float.
+• Z-compare: SAMPLE*C*, GATHER*C*. 1 DWORD.
+• Derivatives (SAMPLE_D): 2,4 or 6 DWORDS - these packed 1 DWORD per derivative as shown below (F32).
+• Body: One to four DWORDs, as defined by the table: Image Opcodes with a Sampler
+Address components are X,Y,Z,W with X in VGPR[M], Y in VGPR[M]+1, etc.
+The number of components in "body" is the value of the ACNT field in the table, plus one.
+"RDNA4" Instruction Set Architecture
+10.4. VGPR Usage
+123 of 697
+
+=== PDF PAGE 134 ===
+Address components are X,Y,Z,W with X in VGPR[M], Y in VGPR[M]+1, etc.
+Note: Bias and Derivatives are mutually exclusive - the shader can use one or the other, but not both.
+32-bit derivatives:
+Image Dim
+VGPR N
+N+1
+N+2
+N+3
+N+4
+N+5
+1D
+dx/dh
+dx/dv
+-
+-
+-
+-
+2D/cube
+dx/dh
+dy/dh
+dx/dv
+dy/dv
+-
+ — 
+3D
+dx/dh
+dy/dh
+dz/dh
+dx/dv
+dy/dv
+dz/dv
+16-bit derivatives:
+Image Type
+VGPR_N
+VGPR_N+1
+VGPR_N+2
+VGPR_N+3
+1 (1D, 1D Array)
+16’hx, dx/dh 16’hx dx/dv
+-
+-
+2 (2D, 2D Array, Cubemap)
+dy/dh, dx/dh dy/dv, dx/dv -
+-
+3 (3D)
+dy/dh, dx/dh 16’hx, dz/dh dy/dv, dx/dv 16’hx, dz/dv
+10.4.1. Address VGPRs
+Image and Sample instructions support multiple address VGPRs to allow the shader to perform a gather
+operation of address components. This allows an image instruction to specify up to 5 unique address VGPRs.
+• VADDR provides the first address component
+• VADDR1 provides the second address component
+• VADDR2 provides the third address component
+• VADDR3 (for VIMAGE) provides the fourth address component for VIMAGE, or for
+VSAMPLE provides all additional components in sequential VGPRs: VADDR3, VADDR3+1, etc.
+• VADDR4 (for VIMAGE) provides all additional components in sequential VGPRs: VADDR4, VADDR4+1, etc.
+The "A16" instruction bit specifies that address components are 16 bits instead of the usual 32 bits. When using
+16-bit addresses, each VGPR holds a pair of addresses and these cannot be located in different VGPRs. The
+lower numbered 16-bit value is in the LSBs of the VGPR.
+For Ray Tracing, the VGPRs are divided up into 5 groups of VGPRs. The VGPRs within each group must be
+contiguous, but the groups can be scattered. The packing is different when A16=1 because RayDir.Z and
+RayInvDir.x are in the same DWORD. In A16 mode, the RayDir and RayInvDir are merged into 3 VGPRs but in a
+different order: RayDir and RayInvDir per component share a VGPR.
+10.4.2. Data VGPRs
+Data :
+data is stored from or returned to 1-4 consecutive VGPRs. The amount of data loaded or stored is completely
+determined by the DMASK field of the instruction.
+Loads
+DMASK specifies which elements of the resource are returned to consecutive VGPRs. The texture system
+loads data from memory and based on the data format expands it to a canonical RGBA form, filling in
+"RDNA4" Instruction Set Architecture
+10.4. VGPR Usage
+124 of 697
+
+=== PDF PAGE 135 ===
+values for missing components based on T#.dst_sel. Then DMASK is applied and only those components
+selected are returned to the shader.
+Stores
+When writing an image object, it is only possible to store an entire element (all components) - not only
+individual components. The components come from consecutive VGPRs and if the surface uses more
+components than the shader supplies, the missing components are filled in by replicating the first VGPR
+into the missing components. E.g. if the surface has 4 components and the shader only supplies X and Y,
+the surfaces is written with XYXX.
+For example if the DMASK=1001, the shader sends Red from VGPR_N and Alpha from VGPR_N+1 to the texture
+unit. If the image object is RGB, the texel is overwritten with Red from the VGPR_N, Green and Blue set to Red
+value, and Alpha from the shader ignored. For D16=1, the DMASK has 1 bit set per 16-bits of data to be written
+from VGPRs to memory. The position of the bits in DMASK is irrelevant, only the number of bits set to 1.
+"D16" instructions
+Load and store instructions also come in a "D16" variant. For stores, each 32bit VGPR holds two 16bit data
+elements that are passed to the texture unit which in turn, converts to the texture format before writing to
+memory. For loads, data returned from the texture unit is converted to 16 bits and a pair of data are stored
+in each 32bit VGPR (LSBs first, then MSBs). If there is only one component, the data goes into the lower half
+of the VGPR unless the "HI" instruction variant is used in which case the high-half of the VGPR is loaded
+with data.
+Atomics
+Image atomic operations are supported only on 32- and 64-bit-per-pixel surfaces. The surface data format is
+specified in the resource constant. Atomic operations treat the element as a single component of 32- or 64-
+bits. For atomic operations, DMASK is set to the number of VGPRs (DWORDs) to send to the texture unit.
+DMASK legal values for atomic image operations: All other values of DMASK are illegal.
+• 0x1 = 32bit atomics except cmpswap
+• 0x3 = 32bit atomic cmpswap
+• 0x3 = 64bit atomics except cmpswap
+• 0xf = 64bit atomic cmpswap
+• Atomics with Return: Data is read out of the VGPR(s), starting at VDATA, to supply to the atomic
+operation. If the atomic returns a value to VGPRs, that data is returned to those same VGPRs starting at
+VDATA.
+The DMASK must be compatible with the resource’s data format.
+Denormals in Floats
+Sample ops flush denormals, and loads do not modify denormals.
+10.4.3. Data format in VGPRs
+Data in VGPRs sent to texture (stores) or returned from texture (loads) is in one of a few standard formats, and
+the texture unit converts to/from the memory format.
+FORMAT
+VGPR data format
+If D16==1
+SINT
+signed 32-bit integer
+16 bit signed int
+UINT
+unsigned 32-bit integer
+16 bit unsigned int
+"RDNA4" Instruction Set Architecture
+10.4. VGPR Usage
+125 of 697
+
+=== PDF PAGE 136 ===
+FORMAT
+VGPR data format
+If D16==1
+others
+32-bit float
+16 bit float
+Atomics
+depends on opcode: uint or float
+-
+10.5. Image Resource
+The image resource (also referred to as T#) defines the location of the image buffer in memory, its dimensions,
+tiling, and data format. These resources are stored in four or eight consecutive SGPRs and are read by image
+instructions. All undefined or reserved bit must be set to zero unless otherwise specified.
+Table 60. Image Resource Definition
+Bits
+Size
+Name
+Comments
+128-bit Resource: 1D-tex, 2d-tex, 2d-msaa (multi-sample anti-aliasing)
+39:0
+40
+base address
+256-byte aligned (represents bits 47:8).
+48:44
+5
+max mip
+MSAA resources: holds Log2(number of samples); others holds maximum mip level:
+MipLevels-1. This describes the resource, not the resource view (like
+base_level/last_level).
+56:49
+8
+format
+Memory Data format
+61:57
+5
+base level
+largest mip level in the resource view. For MSAA, this should be set to 0.
+77:62
+16
+width
+width-1 of mip 0 in texels
+93:78
+16
+height
+height-1 of mip 0 in texels
+98:96
+3
+dst_sel_x
+0 = 0, 1 = 1, 4 = R, 5 = G, 6 = B, 7 = A.
+101:99
+3
+dst_sel_y
+104:102
+3
+dst_sel_z
+107:105
+3
+dst_sel_w
+115:111
+5
+last level
+smallest mip level in resource view. For MSAA, holds log2(number of samples).
+123:121
+3
+BC Swizzle
+Specifies channel ordering for border color data independent of the T# dst_sel_*s.
+Internal xyzw channels get the following border color channels as stored in memory.
+0=xyzw, 1=xwyz, 2=wzyx, 3=wxyz, 4=zyxw, 5=yxwz
+127:124
+4
+type
+0 = buf, 8 = 1d, 9 = 2d, 10 = 3d, 11 = cube, 12 = 1d-array, 13 = 2d-array, 14 = 2d-msaa, 15
+= 2d-msaa-array. 1-7 are reserved.
+256-bit Resource: 1d-array, 2d-array, 3d, cubemap, MSAA
+141:128
+14
+depth
+3D resources: (depth-1) of mip 0.
+1D or 2D Array, cube resources: last array slice (see type table below). Max 8k - bit 14
+not used.
+1D or 2D, MSAA resources: LSBs of pitch-1. i.e. (pitch-1)[13:0] of mip 0, if pitch >
+width. The pitch_msb field contains the MSBs of the pitch field.
+Other resources: Must be zero
+143:142
+2
+pitch_msb
+1D or 2D, MSAA resources: MSBs of pitch-1. i.e. (pitch-1)[15:14]] of mip 0, if pitch >
+width.
+Other resources: Must be zero
+156:144
+13
+base array
+First slice in array of the resource view.
+164
+1
+UAV3D
+3D resources: bit 0 indicates SRV or UAV:
+0: SRV (base_array ignored, depth w.r.t. base map)
+1: UAV (base_array and depth are first and last layer in view, and w.r.t. mip level
+specified)
+Other resources: Not used
+177:165
+13
+min_lod_warn
+feedback trigger for LOD, u5.8 format
+"RDNA4" Instruction Set Architecture
+10.5. Image Resource
+126 of 697
+
+=== PDF PAGE 137 ===
+Bits
+Size
+Name
+Comments
+183
+1
+corner samples
+mod
+Describes how texels were generated in the resource. 0=center sampled, 1 = corner
+sampled.
+198:186
+13
+min_lod
+smallest LOD allowed for PRTs, U5.8 format
+A resource that is all zeros is treated as 'unbound': it returns all zeros and not generate a memory transaction.
+The "resource-level" field is ignored when checking for "all zeros".
+10.6. Image Sampler
+The sampler resource (also referred to as S#) defines what operations to perform on texture map data loaded
+by sample instructions. These are primarily address clamping and filter options. Sampler resources are
+defined in four consecutive SGPRs and are supplied to the texture cache with every sample instruction.
+Table 61. Image Sampler Definition
+Bits
+Size
+Name
+Description
+2:0
+3
+clamp x
+Clamp/wrap mode:
+0: Wrap
+1: Mirror
+2: ClampLastTexel
+3: MirrorOnceLastTexel
+4: ClampHalfBorder
+5: MirrorOnceHalfBorder
+6: ClampBorder
+7: MirrorOnceBorder
+5:3
+3
+clamp y
+8:6
+3
+clamp z
+11:9
+3
+max aniso ratio
+0 = 1:1
+1 = 2:1
+2 = 4:1
+3 = 8:1
+4 = 16:1
+14:12
+3
+depth compare func
+0: Never
+1: Less
+2: Equal
+3: Less than or equal
+4: Greater
+5: Not equal
+6: Greater than or equal
+7: Always
+15
+1
+force unnormalized
+Force address cords to be unorm: 0 = address coordinates are
+normalized, in [0,1); 1 = address coordinates are unnormalized in the
+range [0,dim).
+18:16
+3
+aniso threshold
+threshold under which floor(aniso ratio) determines number of samples
+and step size
+19
+1
+mc coord trunc
+enables bilinear blend fraction truncation to 1 bit for motion
+compensation
+20
+1
+force degamma
+force format to srgb if data_format allows
+26:21
+6
+aniso bias
+6 bits, in u1.5 format.
+27
+1
+trunc coord
+selects texel coordinate rounding or truncation.
+28
+1
+disable cube wrap
+disables seamless DX10 cubemaps, allows cubemaps to clamp according
+to clamp_x and clamp_y fields
+30:29
+2
+filter_mode
+0 = Blend (lerp); 1 = min, 2 = max.
+"RDNA4" Instruction Set Architecture
+10.6. Image Sampler
+127 of 697
+
+=== PDF PAGE 138 ===
+Bits
+Size
+Name
+Description
+31
+1
+skip degamma
+disabled degamma (sRGB→Linear) conversion.
+44:32
+13
+min lod
+minimum LOD ins resource view space (0.0 = T#.base_level) u5.8.
+57:45
+13
+max lod
+maximum LOD ins resource view space
+77:64
+14
+lod bias
+LOD bias s6.8.
+83:78
+6
+lod bias sec
+bias (s2.4) added to computed LOD
+85:84
+2
+xy mag filter
+Magnification filter: 0=point, 1=bilinear, 2=aniso-point, 3=aniso-linear
+87:86
+2
+xy min filter
+Minification filter: 0=point, 1=bilinear, 2=aniso-point, 3=aniso-linear
+89:88
+2
+z filter
+Volume Filter: 0=none (use XY min/mag filter), 1=point, 2=linear
+91:90
+2
+mip filter
+Mip level filter: 0=none (disable mipmapping,use base-level), 1=point,
+2=linear
+125:114
+12
+border color ptr
+index to border color space
+127:126
+2
+border color type
+Opaque-black, transparent-black, white, use border color ptr.
+0: Transparent Black
+1: Opaque Black
+2: Opaque White
+3: Register (User border color, pointed to by border_color_ptr)"
+10.7. Data Formats
+The table below details all the data formats that can be used by image and buffer resources.
+Table 62. Buffer and Image Data Formats
+#
+Format
+#
+Format
+#
+Format
+0
+INVALID
+32
+10_10_10_2_UNORM
+64
+8_SRGB
+1
+8_UNORM
+33
+10_10_10_2_SNORM
+65
+8_8_SRGB
+2
+8_SNORM
+34
+10_10_10_2_UINT
+66
+8_8_8_8_SRGB
+3
+8_USCALED
+35
+10_10_10_2_SINT
+67
+5_9_9_9_FLOAT
+4
+8_SSCALED
+36
+2_10_10_10_UNORM
+68
+5_6_5_UNORM
+5
+8_UINT
+37
+2_10_10_10_SNORM
+69
+1_5_5_5_UNORM
+6
+8_SINT
+38
+2_10_10_10_USCALED
+70
+5_5_5_1_UNORM
+7
+16_UNORM
+39
+2_10_10_10_SSCALED
+71
+4_4_4_4_UNORM
+8
+16_SNORM
+40
+2_10_10_10_UINT
+72
+4_4_UNORM
+9
+16_USCALED
+41
+2_10_10_10_SINT
+73
+1_UNORM
+10
+16_SSCALED
+42
+8_8_8_8_UNORM
+74
+1_REVERSED_UNORM
+11
+16_UINT
+43
+8_8_8_8_SNORM
+75
+32_FLOAT_CLAMP
+12
+16_SINT
+44
+8_8_8_8_USCALED
+76
+8_24_UNORM
+13
+16_FLOAT
+45
+8_8_8_8_SSCALED
+77
+8_24_UINT
+14
+8_8_UNORM
+46
+8_8_8_8_UINT
+78
+24_8_UNORM
+15
+8_8_SNORM
+47
+8_8_8_8_SINT
+79
+24_8_UINT
+16
+8_8_USCALED
+48
+32_32_UINT
+80
+X24_8_32_UINT
+17
+8_8_SSCALED
+49
+32_32_SINT
+81
+X24_8_32_FLOAT
+18
+8_8_UINT
+50
+32_32_FLOAT
+82
+GB_GR_UNORM
+19
+8_8_SINT
+51
+16_16_16_16_UNORM
+83
+GB_GR_SNORM
+20
+32_UINT
+52
+16_16_16_16_SNORM
+84
+GB_GR_UINT
+21
+32_SINT
+53
+16_16_16_16_USCALED
+85
+GB_GR_SRGB
+22
+32_FLOAT
+54
+16_16_16_16_SSCALED
+86
+BG_RG_UNORM
+23
+16_16_UNORM
+55
+16_16_16_16_UINT
+87
+BG_RG_SNORM
+"RDNA4" Instruction Set Architecture
+10.7. Data Formats
+128 of 697
+
+=== PDF PAGE 139 ===
+#
+Format
+#
+Format
+#
+Format
+24
+16_16_SNORM
+56
+16_16_16_16_SINT
+88
+BG_RG_UINT
+25
+16_16_USCALED
+57
+16_16_16_16_FLOAT
+89
+BG_RG_SRGB
+26
+16_16_SSCALED
+58
+32_32_32_UINT
+27
+16_16_UINT
+59
+32_32_32_SINT
+Compressed Formats
+28
+16_16_SINT
+60
+32_32_32_FLOAT
+109
+BC1_UNORM
+29
+16_16_FLOAT
+61
+32_32_32_32_UINT
+110
+BC1_SRGB
+30
+10_11_11_FLOAT
+62
+32_32_32_32_SINT
+111
+BC2_UNORM
+31
+11_11_10_FLOAT
+63
+32_32_32_32_FLOAT
+112
+BC2_SRGB
+113
+BC3_UNORM
+114
+BC3_SRGB
+115
+BC4_UNORM
+116
+BC4_SNORM
+117
+BC5_UNORM
+118
+BC5_SNORM
+119
+BC6_UFLOAT
+120
+BC6_SFLOAT
+121
+BC7_UNORM
+122
+BC7_SRGB
+205
+YCBCR_UNORM
+206
+YCBCR_SRGB
+227
+6E4_FLOAT
+10.8. Vector Memory Instruction Data Dependencies
+When a VM instruction is issued, it schedules the reads of address and store-data from VGPRs to be sent to the
+texture unit. Any ALU instruction that attempts to write this data before it has been sent to the texture unit is
+stalled.
+The shader developer’s responsibility to avoid data hazards associated with VMEM instructions include waiting
+for VMEM read instruction completion before reading data fetched from the TC (LOADcnt and STOREcnt).
+Ray-tracing Image BVH instructions are tracked with BVHcnt.
+This is explained in the section: Data Dependency Resolution
+10.9. Ray Tracing
+Ray Tracing support includes the following instructions:
+IMAGE_BVH_INTERSECT_RAY
+tests a single QBVH node referenced by a 32 bit
+node pointer per lane
+IMAGE_BVH64_INTERSECT_RAY
+tests a single QBVH node referenced by a 64 bit
+node pointer per lane
+IMAGE_BVH_DUAL_INTERSECT_RAY
+tests two QBVH nodes referenced by a 64 bit BVH
+base and two 32 bit node offsets
+IMAGE_BVH8_INTERSECT_RAY
+tests a BVH8 node referenced by a 64 bit BVH
+base and a 32 bit node offset
+"RDNA4" Instruction Set Architecture
+10.8. Vector Memory Instruction Data Dependencies
+129 of 697
+
+=== PDF PAGE 140 ===
+Ray tracing instruction support also includes BVH stack operations in LDS. See Ray Tracing Stack Ops.
+These instructions receive ray data from the VGPRs and fetch BVH (Bounding Volume Hierarchy) from
+memory.
+• Box BVH nodes perform 4x Ray/Box intersection, sorts the 4 children based on intersection distance and
+returns the child pointers and hit status.
+• Triangle nodes perform 1 Ray/Triangle intersection test and returns the intersection point and triangle ID.
+The first two instructions are identical, except that the "64" version supports a 64-bit address while the normal
+version supports only a 32bit address. These instructions can use the "A16" instruction field to reduce some
+(but not all) of the address components to 16 bits (from 32), except for image_bvh_dual_intersect_ray and
+image_bvh8_intersect_ray that do not support A16=1. The addresses that can be 16-bits are: ray_dir and
+ray_inv_dir.
+10.9.1. Instruction definition and fields
+    image_bvh_intersect_ray       vgpr_d[4], vgpr_a[11], sgpr_r[4]
+    image_bvh_intersect_ray       vgpr_d[4], vgpr_a[8], sgpr_r[4]   A16=1
+    image_bvh64_intersect_ray     vgpr_d[4], vgpr_a[12], sgpr_r[4]
+    image_bvh64_intersect_ray     vgpr_d[4], vgpr_a[9], sgpr_r[4]   A16=1
+    image_bvh_dual_intersect_ray  vgpr_d[10], vgpr_a[12], sgpr_r[4]
+    image_bvh8_intersect_ray      vgpr_d[10], vgpr_a[11], sgpr_r[4]
+When issued these instructions perform the following operations for every active lane in the wave:
+1. Receive data that describes the ray to be tested from the SP (stored in vgpr_a)
+2. Receives the BVH node pointers that should be fetched and tested from the SP (stored in vgpr_a)
+3. Receives a BVH resource descriptor from the Shader (stored in sgpr_r)
+4. Calculates the BVH node type, data size and address for the BVH node that is being tested
+5. Fetches the BVH node from memory
+6. Performs intersection testing based on the BVH node type
+7. Returns intersection results to the shader (where they are stored in vgpr_d)
+8. Updates the ray origin and direction if an instance node is tested (updating values in vgpr_a)
+Every lane in the wave can test a different ray against a different BVH node, even mixing multiple types of BVH
+node tests within a single wave in one instruction issue. Additionally, image_bvh instructions can be pipelined
+with other image, buffer and flat memory instructions using the typical s_waitcnt based synchronization.
+However, hardware does not do any recursion or looping internally before returning control to the shader. It
+only tests the BVH nodes against each ray and returns - the shader must implement the traversal loop required
+to implement a full BVH traversal.
+Table 63. Ray Tracing VGPR Contents for image_bvh_intersect_ray and image_bvh64_intersect_ray
+VGPR_
+A
+BVH A16=0
+BVH A16=1
+BVH64 A16=0
+BVH64 A16=1
+0
+node_pointer (u32)
+node_pointer (u32)
+node_pointer [31:0] (u32)
+node_pointer [31:0] (u32)
+1
+ray_extent (f32)
+ray_extent (f32)
+node_pointer [63:32] (u32)
+node_pointer [63:32] (u32)
+2
+ray_origin.x (f32)
+ray_origin.x (f32)
+ray_extent (f32)
+ray_extent (f32)
+"RDNA4" Instruction Set Architecture
+10.9. Ray Tracing
+130 of 697
+
+=== PDF PAGE 141 ===
+VGPR_
+A
+BVH A16=0
+BVH A16=1
+BVH64 A16=0
+BVH64 A16=1
+3
+ray_origin.y (f32)
+ray_origin.y (f32)
+ray_origin.x (f32)
+ray_origin.x (f32)
+4
+ray_origin.z (f32)
+ray_origin.z (f32)
+ray_origin.y (f32)
+ray_origin.y (f32)
+5
+ray_dir.x (f32)
+[15:0] = ray_dir.x (f16)
+[31:16] = ray_dir.y (f16)
+ray_origin.z (f32)
+ray_origin.z (f32)
+6
+ray_dir.y (f32)
+[15:0] = ray_dir.z (f16)
+[31:16] = ray_inv_dir.x(f16)
+ray_dir.x (f32)
+[15:0] = ray_dir.x (f16)
+[31:16] = ray_dir.y (f16)
+7
+ray_dir.z (f32)
+[15:0] = ray_inv_dir.y (f16)
+[31:16] = ray_inv_dir.z (f16)
+ray_dir.y (f32)
+[15:0] = ray_dir.z (f16)
+[31:16] = ray_inv_dir.x(f16)
+8
+ray_inv_dir.x (f32)
+unused
+ray_dir.z (f32)
+[15:0] = ray_inv_dir.y (f16)
+[31:16] = ray_inv_dir.z (f16)
+9
+ray_inv_dir.y (f32)
+unused
+ray_inv_dir.x (f32)
+unused
+10
+ray_inv_dir.z (f32)
+unused
+ray_inv_dir.y (f32)
+unused
+11
+unused
+unused
+ray_inv_dir.z (f32)
+unused
+Vgpr_d[4] are the destination VGPRs of the results of intersection testing. The values returned here are
+different depending on the type of BVH node that was fetched. For box nodes the results contain the 4 pointers
+of the children boxes in intersection time sorted order. For triangle BVH nodes the results contain the
+intersection time and triangle ID of the triangle tested.
+Sgpr_r[4] is the texture descriptor for the operation. The instruction is encoded with use_128bit_resource=1.
+IMAGE_BVH_DUAL_INTERSECT_RAY:
+Table 64. Ray Tracing VGPR Contents for image_bvh_dual_intersect_ray and image_bvh8_intersect_ray
+VGPR Group VGPR in Group
+Contents
+0
+0
+bvh_base[31:0] (first part of uint64, input, bits[2:0] must be 0)
+0
+1
+bvh_base[63:32] (second part of uint64,input)
+1
+0
+ray_extent (float32,input)
+1
+1
+instance_mask (8bit uint,input)
+2
+0
+ray_origin.x (float32, input and output parameter)
+2
+1
+ray_origin.y (float32, input and output parameter)
+2
+2
+ray_origin.z (float32, input and output parameter)
+3
+0
+ray_dir.x (float32, input and output parameter)
+3
+1
+ray_dir.y (float32, input and output parameter)
+3
+2
+ray_dir.z (float32, input and output parameter)
+4
+0
+image_bvh_dual_intersect_ray: node_pointer0 (offset of first node to test, uint32,input)
+image_bvh8_intersect_ray: node_pointer (offset of BVH8 node to test, uint32)
+4
+1
+image_bvh_dual_intersect_ray: node_pointer1 (offset of second node to test,
+uint32,input)
+image_bvh8_intersect_ray: unused
+vgpr_d[10] are the destination VGPRs of the results of intersection testing. The first 4 values correspond to the
+results from the first node, while the second 4 values correspond to the results of the second node. If both
+nodes are box nodes and wide sorting is enabled, the 8 values are intermixed between both nodes tested (as
+dictated by the 8 wide sort). The values returned here are different depending on the type of BVH node that
+was fetched.
+For box nodes the results contain the 4 pointers of the children boxes in intersection time sorted order. For
+triangle BVH nodes the results contain the intersection time and triangle ID or barycentrics of the triangle
+"RDNA4" Instruction Set Architecture
+10.9. Ray Tracing
+131 of 697
+
+=== PDF PAGE 142 ===
+tested. For Instance nodes, the data consists of the 64 bit BVH base, the node pointer offset in the BVH, a 24 bit
+user data field, and 8 bit instance mask. See section "Intersection Engine Return Data" for more information.
+The last two DWORDs contain the ShapeID/GeoID of each triangle tested.
+IMAGE_BVH8_INTERSECT_RAY:
+vgpr_d[10] are the destination VGPRs of the results of intersection testing. The values returned here are
+different depending on the type of BVH node that was fetched.
+For box nodes the results contain the 8 pointers of the children boxes in intersection time sorted order. When
+wide sorting is disabled, the first 4 values correspond to the results from boxes 0-3, while the second 4 values
+correspond to the results of boxes 4-7. If wide sorting is enabled, the 8 values are fully intermixed and contain
+results for boxes 0-7 (as dictated by the 8 wide sort). For triangle BVH nodes the results contain the intersection
+time and triangle ID or barycentrics of both the triangles tested. For Instance nodes, the data consists of the 64
+bit BVH base, the node pointer offset in the BVH, a 24 bit user data field, and 8 bit instance mask. See section
+"Intersection Engine Return Data" for more information.
+The last two DWORDs contain the ShapeID/GeoID of each triangle tested.
+Restrictions on image_bvh instructions
+• DMASK must be set to 0xf (instruction returns all four DWORDs)
+• D16 must be set to 0 (16 bit return data is not supported)
+• R128 must be set to 1 (256 bit T#s are not supported)
+• UNRM must be set to 1 (only unnormalized coordinates are supported)
+• DIM must be set to 0 (BVH textures are 1D)
+• LWE must be set to 0 (LOD warn is not supported)
+• TFE must be set to 0 (no support for writing out the extra DWORD for the PRT hit status)
+• SSAMP must be set to 0 (just a placeholder, since samplers are not used by the instruction)
+The return order settings of the BVH ops are ignored instead they use the in-order load return queue.
+10.9.2. VGPR_A Field Organization
+The VIMAGE instruction encoding specifies 5 VADDR fields that are used with BVH instructions as follows:
+node pointer
+VADDR0: 1 vgpr
+ray extent
+VADDR1: 1 vgpr
+ray origin
+VADDR2: 3 consecutive vgprs
+ray dir
+VADDR3: 3 consecutive vgprs
+ray inv dir
+VADDR4: 3 consecutive vgprs (paired with ray-dir for 16-bit addresses)
+When using A16=1 mode, ray-dir and ray-inv-dir share the same vgprs and ADDR4 is unused.
+10.9.3. BVH Texture Resource Definition
+The T# used with these BVH instructions is different from other image instructions.
+"RDNA4" Instruction Set Architecture
+10.9. Ray Tracing
+132 of 697
+
+=== PDF PAGE 143 ===
+Table 65. BVH Resource Definition
+Bits
+Size
+Field
+Description
+39:0
+40
+base_address[47:8]
+Base address of the BVH texture, 256 byte aligned.
+51:40
+12
+Reserved
+Must be zero.
+52
+1
+sort_triangles_first
+0: Pointers to triangle nodes are not treated differently during child sorting.
+1: Pointers to triangle nodes (type 0 and 1 for image_bvh8, type 0,1,2,3 for all other
+image_bvh ops) are sorted before valid box nodes.
+54:53
+2
+box_sorting_heuristic
+Specifies which heuristic should be utilized for sorting children when box sorting
+is enabled.
+0: Closest Traversal is ordered to enter the children that intersect the ray closer to
+the ray origin first.
+1: LargestFirst Traversal is ordered to enter the children that have the largest
+interval where the box intersects the ray first.
+2: ClosestMidpoint Traversal is ordered to enter the children that have a midpoint
+in the interval, where the box intersects that has the lowest intersection time
+before clamping.
+3: Undefined Reserved
+62:55
+8
+box_grow_value
+UINT — used to extend the MAX plane of the box intersection
+63
+1
+box_sort_en
+boolean to enable sorting the box intersect results
+105:64
+42
+size[47:6]
+In units of 64 bytes. Represents the number of nodes in BVH texture minus 1. Used
+for bounds checking.
+115:106 10
+Reserved
+Must be zero.
+116
+1
+box_node_64B
+0: node type 4 is FP16 box node
+1: node type 4 is 64B high precision box node
+117
+1
+wide_sort_en
+0: sort across 4 box children
+1: sort across 8 box children
+118
+1
+instance_en
+0: node 6 is user node
+1: node 6 is instance node
+119
+1
+pointer_flags
+0: Do not use pointer flags or features supported by pointer flags.
+1: Utilize pointer flags to enable HW winding, back face cull, opaque/non-opaque
+culling and primitive type based culling.
+120
+1
+triangle_return_mode
+0: return hit/miss with triangle test result dword[3:0] = {t_num, t_denom,
+triangle_id, hit_status}
+1: return barycentrics with triangle test result dword[3:0] = {t_num, t_denom,
+I_nim, J_num}
+123:121 3
+Reserved
+Must be zero.
+127:124 4
+type
+Must be set to 0x08.
+Barycentrics
+The ray-tracing hardware is designed to support computation of barycentric coordinates directly in hardware.
+This uses the "triangle_return_mode" in the table in the previous section (T# descriptor).
+Table 66. Ray Tracing Return Mode
+DWORD
+Return Mode =0
+Return Mode = 1
+Field Name
+Type
+Field Name
+Type
+0
+t_num
+float32
+t_num
+float32
+1
+t_denom
+float32
+t_denom
+float32
+2
+triangle_id
+uint32
+I_num
+float32
+3
+hit_status
+uint32 (boolean value)
+J_num
+float32
+"RDNA4" Instruction Set Architecture
+10.9. Ray Tracing
+133 of 697
+
+=== PDF PAGE 144 ===
+10.10. Partially Resident Textures
+"Partially Resident Textures" provides support for texture maps in which not all levels of detail are resident in
+memory. The shader compiler declares the texture map as being P.R.T. in the resource, but the shader
+program must also be aware of this because if a texture fetch accesses a MIP level that is not present, the
+texture unit returns an extra DWORD of status into VGPRs indicating the fetch failure. If any of the texels are
+not present in memory, the texture cache returns NACK that causes a non-zero value to be written into
+DST_VGPR+1 for each failing thread. The value may represent the LOD requested. The shader program must
+allocate this extra VGPR for all PRT texture fetches and check that it is zero after the fetch. The user should
+initialize this PRT VGPR to zero prior to issuing a texture fetch which may return a PRT result.
+PRT is enabled when the texture resource MIN_LOD_WARN value is non-zero. Normal textures cannot NACK,
+so only PRT’s can get a NACK, and a NACK causes a write to DST_VGPR+Num_VGPRS. E.g. if a SAMPLE loads 4
+values into 4 VGPRs: 4,5,6,7 then PRT may return NACK status into VGPR_8.
+"RDNA4" Instruction Set Architecture
+10.10. Partially Resident Textures
+134 of 697
+

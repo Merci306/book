@@ -1,0 +1,778 @@
+=== PDF PAGE 53 ===
+Chapter 5. Program Flow Control
+Program flow control is programmed using scalar ALU instructions. This includes loops, branches, subroutine
+calls, and traps. The program uses SGPRs to store branch conditions and loop counters. Constants can be
+fetched from the scalar constant cache directly into SGPRs.
+The instructions in the this chapter control the priority and termination of a shader program, as well as
+provide support for trap handlers.
+5.1. Program Flow Control Instruction Formats
+These instructions are encoded in one of these microcode formats, shown below:
+Name
+Size
+Function
+SOPP
+32 bit
+SALU program control op with a 16-bit immediate
+constant
+SOP1
+32 bit
+SALU op with 1 input
+Each of these instruction formats uses some of these fields:
+Field
+Description
+OP
+Opcode: instruction to be executed.
+SDST
+Destination SGPR, M0, NULL or EXEC.
+SSRC0
+First source operand.
+SIMM16
+Signed immediate 16-bit integer constant.
+5.2. Program Control Instructions
+Table 17. Wave Termination and Traps
+Instructions
+Description
+S_ENDPGM
+Terminates the wave. It can appear anywhere in the shader program and can appear
+multiple times.
+S_ENDPGM_SAVED
+Terminates the wave due to context save. Intended for use only within the trap handler.
+"RDNA4" Instruction Set Architecture
+5.1. Program Flow Control Instruction Formats
+43 of 697
+
+=== PDF PAGE 54 ===
+Instructions
+Description
+S_TRAP
+Jump to the trap handler and pass in 4-bit TRAP id from SIMM[3:0].
+<wait for outstanding instructions to finish>
+{ TTMP1, TTMP0 } = {TrapID[3:0], zeros, PC[47:0]} // TrapID=0 unless the exception is
+"S_TRAP"
+PC = TBA (trap base address)
+PRIV = 1
+Host traps cause the shader hardware to generate an S_TRAP instruction. Note: the save-PC
+points to the S_TRAP instruction. TRAPID 0 is reserved and should not be used.
+S_RFE_B64
+Return from exception (trap handler) and continue.
+Start executing at PC stored in SGPRs or TTMPs.
+MOVE PC, <src> ; STATUS.PRIV = 0.
+This instruction may only be used within a trap handler.
+S_SETHALT
+Set the HALT or FATAL_HALT bit to the value of SIMM16[0].
+SIMM16[0]: 1 = halt, 0 = resume. Applies to HALT or FATAL_HALT (see SIMM16[2])
+SIMM16[2]: 1 = set FATAL_HALT bit; 0 = set HALT bit.
+The user shader can set the HALT bit, but not the FATAL_HALT bit;
+the trap handler (priv=1) is allowed to set either bit.
+HALT == 1
+halts a wave when PRIV==0, but not when PRIV==1
+FATAL_HALT == 1
+halts a wave when PRIV==0 and when PRIV==1
+The HALT==1 bit causes shaders to halt when PRIV==0, but is ignored when PRIV==1. If
+HALT is set to 1 while PRIV==1, it only takes effect and halts the shader after returning to
+the user shader (S_RFE, which makes PRIV=0).
+The FATAL_HALT==1 bit causes shaders to halt regardless of PRIV value. Once
+FATAL_HALTed, a shader cannot un-halt itself – only host-commands can do that.
+Table 18. Dependency, Delay and Scheduling Instructions
+Instructions
+Description
+S_NOP
+NOP. Repeat SIMM16[6:0] times. [1..128]
+Like a short version of S_SLEEP
+S_SLEEP
+Cause a wave to sleep for approximately 64*SIMM16[6:0] clocks, or can be woken up early
+by S_WAKEUP instructions.
+"s_sleep 0" sleeps the wave for 0 cycles. If SIMM16[15]==1, sleep forever (until wakeup, trap or
+kill).
+S_SLEEP_VAR
+Cause a wave to sleep for approximately SGPR_value[6:0]*64 cycles. This is also woken up
+by S_WAKEUP instructions.
+S_WAKEUP
+Causes one wave in a work-group to signal all other waves in the same work-group to wake
+up from S_SLEEP/S_SLEEP_VAR early. If waves are not sleeping, they are not affected by
+this instruction.
+S_SETPRIO
+Set 2-bits of USER_PRIO: user-settable wave priority. 0 = low, 3 = high.
+Overall wave priority is: {MIN(3,(SysPrio[1:0] + UserPrio[1:0])), WaveAge[3:0]}
+S_CLAUSE
+Begin a clause consisting of instructions matching the type of instruction after the s_clause.
+The clause length is: (SIMM16[5:0] + 1), and clauses must be between 2 and 63 instructions.
+SIMM16[5:0] must be 1-32, not 0 or 63.
+S_BARRIER_SIGNAL
+S_BARRIER_SIGNAL_ISFIRST
+Signal that a wave has as arrived at a barrier. Synchronize waves within a work-group.
+Waves not in a work-group (or work-group size = 1 wave), treat this as S_NOP. ISFIRST
+variant returns to SCC if this is the first wave to signal.
+"RDNA4" Instruction Set Architecture
+5.2. Program Control Instructions
+44 of 697
+
+=== PDF PAGE 55 ===
+Instructions
+Description
+S_BARRIER_WAIT
+Wait for all waves in the work-group to signal the barrier before proceeding. Synchronize
+waves within a work-group. If not all waves in group have been created yet, waits for entire
+group before proceeding. Waves that have ended do not prevent barriers from being
+satisfied. Waves not in a work-group (or work-group size = 1 wave), treat this as S_NOP.
+S_GET_BARRIER_STATE
+Get the current barrier state, typically for context switching.
+Table 19. Control Instructions
+Instructions
+Description
+S_VERSION
+Does nothing (treated as S_NOP), but can be used as a code comment to indicate the
+hardware version the shader is compiled for (using the SIMM16 field).
+S_CODE_END
+Treated as an illegal instruction. Used to pad past the end of shaders.
+S_SENDMSG
+Send a message upstream to the Interrupt handler or dedicated hardware. SIMM[9:0] is an
+immediate value holding the message type. There is no "S_WAIT_*CNT" enforced before this.
+S_SENDMSG_RTN_B32
+S_SENDMSG_RTN_B64
+Send a message upstream to that requests that some data be returned to an SGPR. Uses
+KMcnt to track when data is returned.
+SDST = SGPR to return to (or an aligned SGPR-pair for "_B64").
+SSRC0 = enum, not an SGPR with the code for what data is requested. (see the message table
+below).
+If this is used to write VCC, then VCCZ is undefined.
+S_SENDMSGHALT
+S_SENDMSG and then HALT.
+S_ICACHE_INV
+Invalidate first-level shader instruction cache for the WGP associated with this wave.
+Table 20. Float Arithmetic State Instructions
+Instructions
+Description
+S_ROUND_MODE
+Set the round mode from an immediate: SIMM16[3:0]
+S_DENORM_MODE
+Set the denorm mode from an immediate: SIMM16[3:0]
+5.3. Instruction Clauses
+An instruction clause is a series of instructions of the same type that are to be executed in an uninterrupted
+sequence. Normally hardware may interleave instructions from different waves, but a clause can be used to
+override that behavior and force the hardware to service only one wave for a given instruction type for the
+duration of the clause, even if that leaves the execution hardware idle.
+Clauses are defined and started using the S_CLAUSE instruction, and must contain only a single type of
+instruction. The clause-type is implicitly defined by the type of instruction immediately following the s_clause.
+Clause Types are:
+• Non-Flat Loads: Image, buffer, global, scratch, BVH and sample/gather
+• Non-Flat Stores: Image, buffer, global, scratch
+• Non-Flat Atomics: Image, buffer, global, scratch
+• Flat Load
+• Flat Store
+• Flat Atomic
+• LDS Indexed Load, Store, Atomic , BVH_stack (all one type)
+• SMEM
+• VALU
+"RDNA4" Instruction Set Architecture
+5.3. Instruction Clauses
+45 of 697
+
+=== PDF PAGE 56 ===
+These are ILLEGAL within a clause
+These are LEGAL within a clause of any type, but not
+as the first instruction
+Instructions of a different type than those of the clause type
+S_CLAUSE
+S_ENDPGM
+SALU
+Branch/Jump
+S_SENDMSG*
+S_SLEEP, S_SLEEP_VAR
+S_SETHALT
+DS_PARAM_LOAD, DS_DIRECT_LOAD
+Export
+VALU: FP64 ops
+S_DELAY_ALU  
+S_NOP
+S_SETPRIO*
+S_VERSION
+S_WAIT_EVENT
+S_WAIT_*CNT, S_WAIT_IDLE
+S_ICACHE_INV
+S_TRAP is legal within a clause, even as the first instruction after S_CLAUSE. S_TRAP ends the clause.
+Note: V_S_* instructions (Pseudo-scalar trans) are VALU ops and may be used in a VALU clause.
+If the first instruction in a VALU clause has EXEC==0, then the clause is ignored and instructions are issued as
+if there were no clause. If the VALU clause starts with EXEC!=0 but EXEC becomes zero in the middle of the
+clause, the clause continues until the last instruction of the specified clause.
+If an S_DELAY_ALU is needed before starting a clause, the order must be:
+    S_DELAY_ALU // must not come immediately after S_CLAUSE - that inst declares clause type
+    S_CLAUSE
+    <first instruction in clause>
+If the first instruction after S_CLAUSE is skipped (e.g. due to EXEC==0, or VMEM-load skipped due to EXEC==0
+and LOADcnt==0) then a clause is not started. Subsequent instructions within what would have been the clause
+are not skipped and are still executed but individually, not as part of a clause.
+5.3.1. Clause Breaks
+The following conditions can break a clause:
+1. VALU exception (trap) breaks a VALU clause
+2. Host commands to wave (halt, resume, single step, etc) breaks all active clauses.
+Context-save breaks clauses of affected waves.
+If a wave halts or is killed, its clauses are ended.
+3. Any action that causes a wave to jump to its trap handler breaks clause (includes context-save).
+A wave entering HALT (including for host-initiated single-step) may break clauses.
+5.4. Send Message Types
+S_SENDMSG is used to send messages to fixed function hardware, the host, or to request that a value be
+returned to the wave. S_SENDMSG encodes the message type in the SIMM16 field and the message payload in
+M0. S_SENDMSG_RTN_B* encodes the message type in the SSRC0 field (does not read an SGPR), the payload (if
+any) in M0, and the destination SGPR in SDST. S_SENDMSG_RTN_B* instructions return data to the shader:
+"RDNA4" Instruction Set Architecture
+5.4. Send Message Types
+46 of 697
+
+=== PDF PAGE 57 ===
+increment KMcnt by 2, and then decrement by 1 when the messages goes out, and by another 1 when the data
+returns. This allows the user to use "S_WAIT_KMCNT==0" to wait for the data to be returned.
+Completion is tracked with KMcnt.
+The table below lists the messages that can be generated using the S_SENDMSG command.
+All message codes not listed are reserved (illegal).
+Table 21. S_SENDMSG Messages
+Message
+SIMM16
+[7:0]
+Payload
+Reserved
+0x00
+Reserved
+INTERRUPT
+0x01
+Software-generated interrupt. M0[23:0] carries user data. ID’s are also sent (wave_id,
+wgp_id, etc.)
+HS_TESSFACTOR
+0x02
+Indicates HS tessellation factor is all zero or one for all patches in this HS work-group.
+Data from M0[0]: 0 = "all threads have tess factor of zero", 1 = "all threads have a tess
+factor of one". This message is optional, but do not send more than once or from any
+shader stage other than HS.
+DEALLOC_VGPRS
+0x03
+Deallocate all VGPRs and scratch memory for this wave, allowing another wave to
+allocate these VGPRs before this wave ends. Typically used immediately before
+S_ENDPGM when a shader is waiting for memory-write-acknowledgments before
+ending.
+GS_ALLOC_REQ
+0x09
+Request GS space in parameter cache. M0[9:0] = number of vertices, M0[22:12] =
+number of primitives. Response: a GS-alloc response to non-zero requests (broadcast to
+work-group).
+S_SENDMSG_RTN is used to send messages that return a value to the wave. The instruction specifies which
+SGPR receives the data in SDST field. The message is encoded in SSRC0 (in the instruction field, not in an
+SGPR).
+Table 22. S_SENDMSG_RTN Messages
+Message
+SIMM16
+[7:0]
+Payload
+RTN_GET_DOORBELL
+0x80
+Get the doorbell ID associated with this wave.
+RTN_GET_DDID
+0x81
+Get the Draw or dispatch ID associated with this wave.
+RTN_GET_TMA
+0x82
+Get the Trap Memory Address: [31:0] or [63:0] depending on the request size.
+RTN_GET_REALTIME
+0x83
+Get the value of the constant frequency (REFCLK) time counter: [31:0] or [63:0]
+depending on the request size.
+RTN_SAVE_WAVE
+0x84
+Used in context switching to indicate this wave is ready to be context saved.
+Only the trap handler can send this message (user shaders have this converted
+to MSG_ILLEGAL_RTN).
+RTN_GET_TBA
+0x85
+Gets the Trap Base Address [31:0] or [63:0] depending on request size
+RTN_GET_SE_HW_ID
+0x87
+Gets the logical shader-engine IDs, returned as:
+data[3:0] = SE_ID; data[11:8] = AID_ID
+RTN_ILLEGAL_MSG
+0xFF
+Illegal message with data return to wave
+5.5. Branching
+Branching is done using one of the following scalar ALU instructions and affects the entire wave, not just
+individual work-items. "SIMM16" is a sign-extended 16 bit integer constant, treated as a DWORD offset for
+"RDNA4" Instruction Set Architecture
+5.5. Branching
+47 of 697
+
+=== PDF PAGE 58 ===
+branches.
+PC value: S_BRANCH, S_CBRANCH, S_SWAPPC, S_CALL, and S_GETPC operate on the PC when it is pointing
+to the instruction after this one. So "S_BRANCH 0" is like a NOP, not an infinite loop.
+Table 23. Branch Instructions
+Instructions
+Description
+S_BRANCH
+Unconditional branch. PC = PC + (SIMM16 * 4)
+S_CBRANCH_
+<cond>
+Conditional branch. Branch only if <condition> is true. 
+if (cond) PC = PC + (SIMM16 *4); else NOP;
+If SIMM16=0, the branch goes to the next instruction).
+<cond> : SCC1, SCC0, VCCZ, VCCNZ, EXECZ, EXECNZ
+(SCC==1, SCC==0, VCC==0, VCC!=0, EXEC==0, EXEC!=0)
+S_SETPC_B64
+Directly set the PC from an SGPR pair: PC = SGPR-pair
+S_SWAPPC_B64
+Swap the current PC (pointing to instruction after this) with an address in an SGPR pair. SWAP (PC,
+SGPR-pair).
+S_GETPC_B64
+Retrieve the current PC value (zero-extended). This does not cause a branch. (SGPR-pair = PC of next
+instruction)
+S_CALL_B64
+Jump to a subroutine, and save return address. SGPR_pair = PC; PC = PC+SIMM16*4.
+For conditional branches, the branch condition can be determined by either scalar or vector operations. A
+scalar compare operation sets the Scalar Condition Code (SCC) which then can be used as a conditional branch
+condition. Vector compare operations set the VCC mask, and VCCZ or VCCNZ then can be used to determine
+branching.
+5.6. Work-groups and Barriers
+Work-groups are collections of waves running on the same WGP that can synchronize and share data. Up to
+1024 work-items (16 wave64’s or 32 wave32’s) can be combined into a work-group. When multiple waves are in
+a work-group, the barrier instructions can be used to cause each wave to wait until all other waves reach the
+same instruction; then, all waves continue.
+The barrier operation is divided into two parts: Signal (arrive) and Wait. Each wave first issues an
+S_BARRIER_SIGNAL to indicate that other waves may proceed. Later the wave issues S_BARRIER_WAIT that
+causes the wave to wait until every wave in the work-group has also issued an S_BARRIER_SIGNAL. When all
+member waves have signaled, the barrier resets and the waves may proceed through their S_BARRIER_WAITs.
+Barrier Valid
+A barrier is valid once all of the waves in the work-group have been created. Until then, the number of waves
+in the work-group is unknown.
+Barrier Complete
+A barrier is complete when each of the waves in the work-group have signaled (or terminated).
+A barrier cannot complete until it is valid, but waves may signal before the barrier is valid.
+It is allowable for a wave to terminate early instead of signaling, and the remaining waves can still use the
+barrier and when the remaining waves have all signaled, they can pass through an S_BARRIER_WAIT. Waves
+should not signal then exit - this could leave the barrier in an unusable state.
+Work-groups consisting of a single wave, and waves not in a work-group, treat all barrier instructions as
+"RDNA4" Instruction Set Architecture
+5.6. Work-groups and Barriers
+48 of 697
+
+=== PDF PAGE 59 ===
+S_NOP.
+All waves in work-groups have these barriers:
+Work-group Barrier
+A barrier that is completed when each of the waves in the work-group have signaled or terminated.
+Trap Barrier
+Same as the work-group-barrier, but exclusively for use by the trap handler. If the user shader tries to
+signal or wait on it, the operation ignored.
+5.6.1. Barrier State
+A Barrier consists of two counts:
+• Member count: how many waves must signal in order to complete the barrier. Initialized to the work-
+group size for the workgroup and trap barriers.
+• Signaled count: how many waves have already signaled the barrier. This resets to zero when the first wave
+of the work-group is created and after barrier completes.
+When the last wave signals a barrier making it complete (signaledCount == memberCount), the barrier
+broadcasts to the work-group that the barrier is complete and then resets signaledCount=0. Keep in mind that
+trap and work-group barriers can only complete once they’re valid. When a work-group is launched, all
+signalCounts are set to zero, the trap and work-group barrier’s memberCount is set to the number of waves in
+the work-group.
+Waves have these bits of state related to barriers:
+• barrierComplete: records if the work-group barrier has previously completed but wave has not yet waited
+on it. This bit is used by S_BARRIER_WAIT: if the bit is 1 when S_BARRIER_WAIT executes, the
+S_BARRIER_WAIT executes immediately and the bit is reset to zero; if the bit is zero then the wave waits
+until the barrier completes (and then the bit is reset to zero when the wave executes S_BARRIER_WAIT).
+• trapBarrierComplete: same, but for the trap barrier
+This wave state (excluding the trap barrier state) can be read with S_GETREG_B32 STATE_PRIV, and written
+with S_SETREG_B32 STATE_PRIV only while in the trap handler (PRIV=1). The barrier state can be read with
+S_GET_BARRIER_STATE but cannot be written.
+5.6.2. Barrier Instructions
+Barriers are controlled using: S_BARRIER_SIGNAL{_ISFIRST}, S_BARRIER_WAIT, and
+S_GET_BARRIER_STATE. Barrier instructions can use M0 or an inline constant to refer to the barrier number,
+except that for S_BARRIER_WAIT can only take an inline constant.
+Reference to the work-group and trap barriers can only be made with inline constants.
+Table 24. Barrier ID’s
+Instruction
+Bar#
+Barrier
+Description
+-2
+Trap Barrier
+Barrier dedicated for use by the trap handler
+"RDNA4" Instruction Set Architecture
+5.6. Work-groups and Barriers
+49 of 697
+
+=== PDF PAGE 60 ===
+Instruction
+Bar#
+Barrier
+Description
+-1
+Work-group barrier
+Barrier to synchronize all waves in a work-group
+Table 25. Barrier Instructions
+Instruction
+Args
+Description
+S_BARRIER_SIGNAL
+S_BARRIER_SIGNAL_
+ISFIRST
+Bar#
+Signal barrier <Bar#>. Bar# can be an inline constant or M0.
+When M0 is used, it supplies the barrierID# (M0[4:0]). When an inline-constant supplies
+the barrierID#, the memberCount is not set. Setting MemberCnt <= SignalCnt is considered
+illegal and may cause the barrier to not complete.
+S_BARRIER_SIGNAL_ISFIRST:
+Same as above, but also return SCC to the wave: 1 if it was the first wave to signal the
+barrier in this round, else return zero. Workgroup barriers return SCC=0 or =1 for each
+s_barrier_signal_isfirst; Uses KMcnt to track when SCC has returned for workgroups.
+SCC should only be read after barrier is complete (after an S_BARRIER_WAIT).
+S_BARRIER_WAIT
+Bar#
+Wait for a barrier to complete. Bar# must be an inline constant.
+S_GET_BARRIER_STATE
+Bar#,
+SDST
+Get barrier state and return it to an SGPR.
+SDST = { 0, signalCnt[6:0], 5’b0, memberCnt[6:0], 3’b0, valid }.
+Uses KMcnt to track completion (inc/dec by 1) Bar# is from M0[4:0] or an inline constant.
+5.6.3. Traps and Exceptions with Barriers
+Traps and exceptions may occur while barriers are in use. They behave normally: the wave waits for idle and
+jumps to the trap handler. If a wave is waiting at S_BARRIER_WAIT when an exception occurs, the wave saves
+the PC of the S_BARRIER_WAIT and jumps to the trap handler. When the shader returns from the trap
+handler, the S_BARRIER_WAIT is re-executed.
+5.6.4. Context Switching
+It is up to the trap handler to save and restore wave and barrier-unit state. Each wave knows if its barrier has
+completed or not. The trap handler begins with a S_BARRIER_SIGNAL & wait (trap barrier). This ensures that
+any previous S_BARRIER_SIGNAL from the user shader has completed and reported back barrier-complete if
+the barrier had completed. The trap handler can then read out and save barrier unit state (the signal-count),
+and restore it later when the context is restored via a series of S_BARRIER_SIGNALs.
+To save context, if a wave is part of a work-group, the wave’s user-barrier state (barrierComplete) must be
+saved & restored. The context save must first ensure all waves have entered their trap handler (or exited) and
+that the user’s barrier operations are all done (idle). This is accomplished by using the trap-barrier.
+One wave is nominated to save the barrier unit state using the barrier’s "signal_isfirst" capability. This wave
+reads the barrier state per unit (excluding the trap barrier) with S_GET_BARRIER_STATE and saves it off. On
+context restore, the same wave restores the state of each barrier unit before any of the waves return to the user
+shader.
+"RDNA4" Instruction Set Architecture
+5.6. Work-groups and Barriers
+50 of 697
+
+=== PDF PAGE 61 ===
+5.7. Data Dependency Resolution
+Shader hardware can resolve most non-memory data dependencies, but memory and export dependencies
+require explicit handling by the shader program. This section describes the rules shader programmers must
+follow in order to get correct results from their shader program. The programmer is rarely required to insert
+waitstates (S_NOP or unrelated instructions).
+The S_WAIT_*CNT instructions are used to resolve data hazards.
+Each wave has counters that count the number of outstanding memory instructions per wave. These counters
+increment when an instruction is issued and decrement when the instructions completes. These allow the
+shader writer to schedule long-latency instructions, execute unrelated work and specify when results of long-
+latency operations are needed. The shader uses the appropriate S_WAIT_*CNT instruction to wait for the
+named counter to be less than or equal to a certain value, to know that some or all of the previously issued
+instructions have completed. While waiting, the wave is effectively asleep (inactive, unable to issue
+instructions).
+Simple S_WAIT_*CNT Example
+  GLOBAL_LOAD_B32 V0, V[4:5], 0x0   // load memory[ {V5, V4} ] into V0, LOADcnt++
+  GLOBAL_LOAD_B32 V1, V[4:5], 0x8   // load memory[ {V5, V4} +8 ] into V1, LOADcnt++
+  S_WAIT_LOADcnt <= 1               // wait for first global_load to have completed
+  V_MOV_B32  V9, V0                 // move V0 into V9
+Another Example
+    S_LOAD s0, ...
+    S_LOAD s1, ...
+    S_WAIT_KMcnt <= 0
+    S_MOV_B32 s2, s0   // out of order
+    DS_param_load v0
+    DS_param_load v1
+    EXP v2
+    EXP v3
+    S_WAIT_EXPcnt <= 1  // higher values don't work but also don't need zero
+    V_MOV_B32 v4, v0
+Instructions of a given type return in order (except SMEM which return out-of-order), but instructions of
+different types can complete out of order. For example, both exports and LDS-param-load instructions use
+EXPcnt but they can return out of order. From vector memory, samples stay in order with samples (from one
+wave) but are unordered with respect to loads, stores and BVH ops. Export-grants return in-order within a
+family of targets but out-of-order between different families (where a family is: MRT’s and Z, positions,
+primitive data, dual-source-blends).
+Table 26. Data Dependency Instructions
+"RDNA4" Instruction Set Architecture
+5.7. Data Dependency Resolution
+51 of 697
+
+=== PDF PAGE 62 ===
+Instructions
+Description
+S_WAIT_STORECNT
+Wait for the counter specified to be less-than or equal-to the count in SIMM16 before
+continuing.
+S_WAIT_DSCNT
+S_WAIT_KMCNT
+S_WAIT_EXPCNT
+S_WAIT_LOADCNT
+S_WAIT_SAMPLECNT
+S_WAIT_BVHCNT
+S_WAIT_LOADCNT_DSCNT
+Wait for the two counters specified to be less-than or equal-to the counts in SIMM16 before
+continuing. 
+SIMM16[15:8] = load/store
+SIMM16[ 7:0] = DS
+S_WAIT_STORECNT_DSCNT
+S_WAIT_EVENT
+Wait for an event to occur before proceeding
+SIMM16[1] : 0=don’t wait, 1=wait for export-ready; other bits are reserved.
+Any exception waits for this to complete before being processed, including: KILL, save-
+context, host trap, memviol and anything that causes a trap to be taken.
+S_DELAY_ALU
+Insert delay between dependent SALU/VALU instructions.
+SIMM16[3:0] = InstID0
+SIMM16[6:4] = InstSkip
+SIMM16[10:7] = InstID1
+This instruction describes dependencies for two instructions, directing the hardware to
+insert delay if the dependent instruction was issued too recently to forward data to the
+second. For details, see: S_DELAY_ALU.
+To ensure correct operation some reads of SGPR registers must be guarded with s_wait_alu instructions. If a
+subset of a 64b SGPR pair (i.e. s[0:1], s[2:3], s[4:5], etc) has been read by a VALU instruction, then reads of
+subsequent values written to any subset of the same SGPR pair must be guarded as follows:
+• for VALU writes to VCC, VALU reads of VCC must wait using s_wait_alu 0xFFFD;
+• for VALU writes to an SGPR, VALU reads of the SGPR must wait using s_wait_alu 0xF1FF;
+• for SALU writes to an SGPR or VCC, SALU or VALU reads of the SGPR or VCC must wait using s_wait_alu
+0xFFFE.
+For example:
+    v_mov_b32 v0, s1        // VALU reads pair s[0:1]
+    s_mov_b32 s0, 0x42      // SALU writes s0
+    s_wait_alu 0xFFFE       // Read of s0 must be guarded by waiting on the SALU to complete
+    s_mov_b32 s2, s0        // SALU reads s0
+5.7.1. Memory Dependency Counters
+S_WAIT_*CNT waits for outstanding instructions that use the specified counter to complete to avoid data
+hazards. Instructions within a type return in the order they were issued compared to other instructions of that
+type (except for SMEM), but often return out of order with respect to instructions of different types.
+Hardware prevents these counters from overflowing by stalling the issue of any instruction that by
+incrementing the counter would cause it to overflow.
+It is possible for load-data to be written to VGPRs out-of-order, but the counter-decrement still reflects in-order
+completion. Stores from a wave are not kept in order with stores from that same wave when they write to
+"RDNA4" Instruction Set Architecture
+5.7. Data Dependency Resolution
+52 of 697
+
+=== PDF PAGE 63 ===
+different addresses.
+These counters count instructions, not threads.
+This table describes the cases that increment and decrement the memory dependency counters.
+Counter
+Size
+Description
+LOADcnt
+6
+Vector memory count: image, buffer, flat, scratch, global (loads and atomic with return), global_inv.
+Determines when memory loads have finished:
+• Incremented by 1 every time a vector-memory load or atomic-with-return (VIMAGE, VBUFFER,
+or FLAT/Scratch/Global format) instruction is issued.
+• Decremented for loads when that instruction and those before it have completed.
+SAMPLEcnt
+6
+Vector memory sample count.
+Increments by 1 for each sample instruction issued, and decrements as they complete (in-order with
+other SAMPLE ops).
+BVHcnt
+3
+Vector memory BVH instruction count. Increments and decrements by 1 for each BVH instruction.
+STOREcnt
+6
+Vector memory store count: image, buffer, flat, scratch, global (stores and atomic without return),
+global_wb/wbinv.
+Determines when memory stores have completed:
+• Incremented every time a vector-memory store or atomic-without-return (VIMAGE, VBUFFER,
+or Flat/Scratch/Global format) instruction is issued.
+• Decremented for stores when the data has been written to the memory hierarchy level specified
+in the SCOPE bits.
+DScnt
+6
+Data-Store count (LDS and Flat)
+Determines when one of these low-latency memory instructions have completed:
+• Incremented by 1 for every LDS instruction issued
+• Decremented by 1 for LDS loads or atomic-with-return when the data has been returned to
+VGPRs.
+• Decremented by 1 for LDS stores when the data has been written to LDS.
+• Incremented by 1 for each Flat instruction issued, decremented when the LDS portion
+completes.
+Ordering:
+• Instructions of different types are returned out-of-order.
+• Instructions of the same type are returned in the order they were issued.
+KMcnt
+5
+Constant Cache (Kcache) and Message Count
+• Incremented by 1 by 32-bit and smaller loads, by 2 for larger loads
+• Incremented by 1 for each S_SENDMSG issued. Decremented by 1 when message is sent out or
+when data is returned.
+• Decremented by 1 for each DWORD returned from the data-cache (SMEM).
+Ordering:
+• Instructions of different types are returned out-of-order.
+• Instructions of the same type are returned in the order they were issued, except scalar-memory-
+loads, which can return out-of-order (in which case only S_WAIT_KMcnt 0 is the only legitimate
+value).
+"RDNA4" Instruction Set Architecture
+5.7. Data Dependency Resolution
+53 of 697
+
+=== PDF PAGE 64 ===
+Counter
+Size
+Description
+EXPcnt
+3
+VGPR-export count, and LDS-direct/param-load count.
+Determines when data has been read out of the VGPR and sent out, at which time it is safe to
+overwrite the contents of that VGPR.
+• Incremented when an Export instruction is issued
+• Decremented for exports when the last cycle of the export instruction is granted and executed
+(VGPRs read out).
+• Incremented when DS_PARAM_LOAD and DS_DIRECT_LOAD are issued, and decremented
+when they complete and write data to VGPRs.
+Ordering:
+• Exports are kept in order only within each export type (color/null, position, primitive, dual-
+source blend), but not between types.
+• DS_PARAM_LOAD is ordered with DS_DIRECT_LOAD, but these are unordered with exports.
+5.7.1.1. Scalar Memory
+SMEM instructions use the KMcnt counter. The counter is incremented by 1 if only a single DWORD is read or
+written, or incremented by 2 for any larger instruction. Cache invalidate instructions count 1 per scalar data
+cache bank. SMEM instructions return out of order even to the same address, so the only sensible way to use
+the counter is: S_WAIT_KMcnt <= 0.
+The scalar data cache is read-only, and is not coherent with the first or second level vector memory cache.
+Users must manually invalidate caches with register writes or shader instructions to stay coherent. The user
+must use S_WAIT_KMcnt<=0 after sending cache-invalidate to confirm it has completed.
+5.7.1.2. Vector Memory - Image, Buffer, Scratch, Global
+LOADcnt counts the number of issued-but-not-completed instructions of type: load, atomic-with-return, and
+cache-invalidate.
+SAMPLEcnt counts the number of issued-but-not-completed instructions of type: sample (includes gather).
+STOREcnt counts the number of memory-store and memory atomic-without-return data instructions issued but
+not yet completed. It is only necessary to wait on STOREcnt when the shader must know that previous writes
+are committed to memory before issuing subsequent writes. There is no hazard on issuing a memory store
+followed by a subsequent instruction overwriting the source GPRs. There is also no hazard between a memory
+store to one memory location followed by a load from the same location (if both are from the same wave) - the
+load and store to the same address stay in order.
+Global invalidate instructions are tracked with LOADcnt, and Global write-back (and write-back-invalidate) are
+tracked with STOREcnt. The shader must use S_WAIT*CNT to know that these have completed.
+Loads are kept in order with other loads and stores are ordered against other stores. Sample instruction are
+kept in order with other samples.
+"RDNA4" Instruction Set Architecture
+5.7. Data Dependency Resolution
+54 of 697
+
+=== PDF PAGE 65 ===
+5.7.1.3. Vector Memory - Flat
+Since Flat instructions may have work-items going to vector memory and others going to LDS, Flat instructions
+use both DScnt and LOADcnt/STOREcnt. Every Flat instruction increments both DScnt and either LOADcnt or
+STOREcnt when the instruction issues, and both are decremented by the time the instruction completes but the
+two counters are decremented at different times: DScnt when LDS is done with its work-items;
+LOADcnt/STOREcnt when vector memory is done with its work-items. The LDS portion of the flat instruction is
+placed in order with other LDS-indexed instructions, and the global memory portion is kept in order with other
+buffer/image/global/scratch instructions.
+Flat instructions effectively work as if both a VMEM and an LDS instruction were issued at the same time, with
+complementary EXEC masks. Once launched, each half completes on its own schedule with no respect to the
+other. This can introduce Write-After-Write hazards if multiple FLAT load instructions write to the same VGPR:
+    A: flat_load_B32 v10, v[0:1]
+    B: flat_load_B32 v10, v[2:3]
+In this example, if "A" reads from vector memory, while "B" reads from LDS, it is likely B completes first, and
+then A overwrites the data from B causing a Write-After-Write hazard.
+Flat vs. LDS
+FLAT and LDS instructions issued from a single wave stay in order as they move through LDS and as they
+complete (and decrement DScnt). However the threads serviced by LDS complete out of order with
+respect to threads serviced by global memory.
+5.7.1.4. LDS
+LDS operations use the DScnt. The counter is incremented when the instruction is issued, and decremented
+when the instruction completes. For writes, this means the data is written into LDS memory; for reads or
+atomic-with-return, it means the return data is available in VGPRs. LDS instructions are kept in order.
+LDS parameter and direct loads use EXPcnt to track when the loads have completed (VGPRs have been
+written).
+5.7.1.5. Export
+Exports use the EXPcnt counter. This counter is used to prevent Write-after-Read hazards. When an export
+instruction is issued, the EXPcnt counter is incremented and an export-request is made to the central export
+arbiter. The shader program continues immediately, but must not overwrite any of the VGPRs holding data
+which have yet to be exported until the export completes. Exports within each type complete in order, but
+different types may complete out of order. For example, if a GS shader exports position and then parameters,
+the parameter export request might be granted first.
+Export instructions do not read the EXEC mask until after the export is granted (which can occur well after the
+instruction is issued). The shader program must use "S_WAIT_EXPcnt 0" before overwriting the EXEC mask.
+M0 is read when the export-request is made, so there is no WAR hazard on M0.
+"RDNA4" Instruction Set Architecture
+5.7. Data Dependency Resolution
+55 of 697
+
+=== PDF PAGE 66 ===
+5.7.1.6. Messages
+Messages use KMcnt: The counter is incremented when the S_SENDMSG instruction is issued, and
+decremented when the message is sent out of the WGP. Use "S_WAIT_KMcnt 0" to ensure the message has
+been sent out of the WGP.
+5.7.2. Specific Dependency Cases
+1. The following cases require a S_NOP or any other instruction before the S_GETREG
+◦S_SETHALT, then S_GETREG (STATE_PRIV or STATUS)
+◦S_SETPRIO, then S_GETREG STATE_PRIV
+See Requirements for WMMA data hazards for more information on WMMA hazard avoidance.
+5.8. ALU Instruction Software Scheduling
+The shader program may include instructions to delay ALU instructions from being issued in order to attempt
+to avoid pipeline stalls caused by issuing dependent instructions too closely together.
+This is accomplished with the: S_DELAY_ALU instruction: "insert delay with respect to a previous VALU
+instruction". The compiler may insert S_DELAY_ALU instructions to indicate data dependencies that might
+benefit from having extra idle cycles inserted between them.
+This instruction is inserted before the instruction that the user wants to delay, and it specifies which previous
+instructions this one is dependent on. The hardware then determines the number of cycles of delay to add.
+This instruction is optional - it is not necessary for correct operation. It should be inserted only when necessary
+to avoid dependency stalls. If enough independent instructions are between dependent ones then no delay is
+necessary. For wave64, the user may not know the status of the EXEC mask and hence not know if instructions
+take 1 or 2 passes to execute.
+The S_DELAY_ALU instruction says: wait for the VALU-Inst N ago to have completed. To reduce instruction
+stream overhead, the S_DELAY_ALU instructions packs two delay values into one instruction, with a "skip"
+indicator so the two delayed instructions don’t need to be back-to-back.
+S_DELAY_ALU may be executed in zero cycles - it may be executed in parallel with the instruction before it.
+This avoids extra delay if no delay is needed.
+S_DELAY_ALU InstID1[4], Skip[3], InstID0[4] // packed into SIMM16
+"RDNA4" Instruction Set Architecture
+5.8. ALU Instruction Software Scheduling
+56 of 697
+
+=== PDF PAGE 67 ===
+INSTID
+counts backwards N VALU instructions that were issued. This means it does not count
+instructions that were branched over. VALU instructions skipped due to EXEC==0 do count
+when calculating INSTID.
+SKIP
+counts the number of instructions skipped before the instruction that has the second
+dependency. Every instruction is counted for skipping - all types.
+If another S_DELAY_ALU is encountered before the info from the previous one is consumed, the current
+S_DELAY_ALU replaces any previous dependency info. This means if an instruction is dependent on two
+separate previous instructions, both of those dependencies can be expressed in a single S_DELAY_ALU op, but
+not in two separate S_DELAY_ALU ops.
+S_DELAY_ALU is applied to any type of opcode, even non-alu (but serves no purpose).
+S_DELAY_ALU should not be used within VALU clauses.
+Table 27. S_DELAY_ALU Instruction Codes
+DEP
+Code
+Dep Code Meaning
+SKIP
+Code
+SKIP Code Meaning
+0
+no dependency
+0
+Same op. Both DEP codes apply to the next instruction
+1-4
+dependent on previous VALU 1-4
+back
+1
+No skip. Dep0 applies to the following instruction, and DEP1 applies
+to the instruction after that one.
+5-7
+dependent on previous
+transcendental VALU 1-4 back
+2
+Skip 1. Dep0 applies to the following instruction. Dep1 applies to 2
+instructions ahead (skip 1 instruction).
+8
+Reserved
+3-5
+Skip 2-4 instructions between Dep0 and Dep1.
+9-11
+Wait 1-3 cycles for previous SALU
+ops
+6
+Reserved
+Codes 9-11: SALU ops typically complete in a single cycle, so waiting for 1 cycle is roughly equivalent to waiting
+for 1 SALU op to execute before continuing.
+Transcendental VALU ops are: SIN, COS, SQRT, RCP, RSQ, EXP, and LOG.
+"RDNA4" Instruction Set Architecture
+5.8. ALU Instruction Software Scheduling
+57 of 697
+

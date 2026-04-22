@@ -1,0 +1,579 @@
+=== PDF PAGE 145 ===
+Chapter 11. Global, Scratch and Flat Address
+Space Operations
+Flat, Global and Scratch are a collection of VMEM instructions that allow per-thread access to global memory,
+shared memory and private memory. Unlike buffer and image instructions, these do not use a resource
+constant.
+Flat is the most generic of the 3 types where per-thread the address may map to global, private or shared
+memory. Memory is addressed as a single flat address space, where certain memory address apertures map
+these regions. The determination of the memory space to which an address maps is controlled by a set of
+"memory aperture" base and size registers. Flat load/store/atomic instructions are effectively a simultaneous
+issue of an LDS and GLOBAL instruction at the same time with the same address. The address per-thread is
+read from the ADDR VGPR and then tested to see in which address space the data exists.
+Flat Address Space ("flat") instructions allow load/store/atomic access to a generic memory address pointer that
+can resolve to any of the following physical memories:
+• Global memory
+• Scratch ("private")
+• LDS ("shared")
+• Invalid
+• But not to: GPRs or LDS-parameters
+GLOBAL is used when all of the address fall into global memory, not LDS or Scratch. This should be used when
+possible (instead of "Flat") as Global does not tie up LDS resources. SCRATCH is similar, but is used to access
+scratch (private) memory space.
+Scratch (thread-private memory) is an allocation of memory private to a wave or workgroup in global memory.
+It can be accessed either via SCRATCH memory instructions, or using FLAT instructions where the address
+falls into an area of memory defined by the aperture registers. When an address falls in scratch space,
+additional address computation is automatically performed by the hardware. For waves that are allocated
+scratch memory space, the 64-bit SCRATCH_BASE register is initialized with the a pointer to that wave’s private
+scratch memory. Waves that have no scratch memory have SCRATCH_BASE initialized to zero.
+SCRATCH_BASE is a 64-bit byte address that is implicitly used by Flat and Scratch memory instructions, and
+can be manually read via S_GETREG_B32.
+The instruction specifies which VGPR supplies the address (per work-item), and that address for each work-
+item may be in any one of those address spaces.
+Instruction Fields
+"RDNA4" Instruction Set Architecture
+135 of 697
+
+=== PDF PAGE 146 ===
+Field
+Size Description
+OP
+8
+Opcode: see next table
+VADDR
+8
+VGPR that holds address or offset. For 64-bit addresses, ADDR has the LSB’s and ADDR+1 has the
+MSBs. For offset a single VGPR has a 32 bit unsigned offset.  
+For FLAT_*: specifies an address.
+For GLOBAL_* when SADDR is NULL: specifies an address.
+For GLOBAL_* when SADDR is not NULL: specifies an unsigned byte offset.
+For SCRATCH, specifies a signed byte offset if SVE=1
+VSRC
+8
+VGPR that holds the first DWORD of store-data. Instructions can use 0-4 DWORDs.
+VDST
+8
+VGPR destination for data returned to the shader, either from LOADs or Atomics that return the
+pre-op value.
+SCOPE
+2
+Memory Scope and Memory Temporal Hint. For atomics, TH indicates whether or not to return the
+pre-op value.
+See Cache Controls: SCOPE and Temporal-Hint for more information about SCOPE and TH bits.
+TH
+3
+IOFFSET
+24
+Address immediate offset: 24-bit signed byte offset
+SADDR
+7
+SGPR that provides an address or offset. To disable use, set this field to NULL. The meaning of this
+field is different for Scratch and Global.
+Flat: Unused
+Scratch: use an SGPR for the signed 32-bit.
+Global: use the SGPR to provide a 64-bit unsigned base address and the VGPR provides a 32-bit byte
+offset.
+SVE
+1
+Scratch VGPR Enable
+When set to 1, scratch instructions include a 32-bit offset from a VGPR;
+when set to 0, scratch instructions do not use a VGPR for addressing.
+Table 67. Instructions
+Flat
+GLOBAL
+Scratch
+FLAT_LOAD_U8
+GLOBAL_LOAD_U8
+SCRATCH_LOAD_U8
+FLAT_LOAD_D16_U8
+GLOBAL_LOAD_D16_U8
+SCRATCH_LOAD_D16_U8
+FLAT_LOAD_D16_HI_U8
+GLOBAL_LOAD_D16_HI_U8
+SCRATCH_LOAD_D16_HI_U8
+FLAT_LOAD_I8
+GLOBAL_LOAD_I8
+SCRATCH_LOAD_I8
+FLAT_LOAD_D16_I8
+GLOBAL_LOAD_D16_I8
+SCRATCH_LOAD_D16_I8
+FLAT_LOAD_D16_HI_I8
+GLOBAL_LOAD_D16_HI_I8
+SCRATCH_LOAD_D16_HI_I8
+FLAT_LOAD_U16
+GLOBAL_LOAD_U16
+SCRATCH_LOAD_U16
+FLAT_LOAD_I16
+GLOBAL_LOAD_I16
+SCRATCH_LOAD_I16
+FLAT_LOAD_D16_B16
+GLOBAL_LOAD_D16_B16
+SCRATCH_LOAD_D16_B16
+FLAT_LOAD_D16_HI_B16
+GLOBAL_LOAD_D16_HI_B16
+SCRATCH_LOAD_D16_HI_B16
+FLAT_LOAD_B32
+GLOBAL_LOAD_B32
+SCRATCH_LOAD_B32
+FLAT_LOAD_B64
+GLOBAL_LOAD_B64
+SCRATCH_LOAD_B64
+FLAT_LOAD_B96
+GLOBAL_LOAD_B96
+SCRATCH_LOAD_B96
+FLAT_LOAD_B128
+GLOBAL_LOAD_B128
+SCRATCH_LOAD_B128
+FLAT_STORE_B8
+GLOBAL_STORE_B8
+SCRATCH_STORE_B8
+FLAT_STORE_D16_HI_B8
+GLOBAL_STORE_D16_HI_B8
+SCRATCH_STORE_D16_HI_B8
+FLAT_STORE_B16
+GLOBAL_STORE_B16
+SCRATCH_STORE_B16
+FLAT_STORE_D16_HI_B16
+GLOBAL_STORE_D16_HI_B16
+SCRATCH_STORE_D16_HI_B16
+FLAT_STORE_B32
+GLOBAL_STORE_B32
+SCRATCH_STORE_B32
+"RDNA4" Instruction Set Architecture
+136 of 697
+
+=== PDF PAGE 147 ===
+Flat
+GLOBAL
+Scratch
+FLAT_STORE_B64
+GLOBAL_STORE_B64
+SCRATCH_STORE_B64
+FLAT_STORE_B96
+GLOBAL_STORE_B96
+SCRATCH_STORE_B96
+FLAT_STORE_B128
+GLOBAL_STORE_B128
+SCRATCH_STORE_B128
+none
+GLOBAL_LOAD_ADDTID_B32
+none
+none
+GLOBAL_STORE_ADDTID_B32
+none
+FLAT_ATOMIC_SWAP_B32
+GLOBAL_ATOMIC_SWAP_B32
+none
+FLAT_ATOMIC_CMPSWAP_B32
+GLOBAL_ATOMIC_CMPSWAP_B32
+none
+FLAT_ATOMIC_ADD_U32
+GLOBAL_ATOMIC_ADD_U32
+none
+FLAT_ATOMIC_ADD_F32
+GLOBAL_ATOMIC_ADD_F32
+none
+FLAT_ATOMIC_PK_ADD_F16
+GLOBAL_ATOMIC_PK_ADD_F16
+none
+FLAT_ATOMIC_PK_ADD_BF16
+GLOBAL_ATOMIC_PK_ADD_BF16
+none
+FLAT_ATOMIC_SUB_U32
+GLOBAL_ATOMIC_SUB_U32
+none
+FLAT_ATOMIC_MIN_I32
+GLOBAL_ATOMIC_MIN_I32
+none
+FLAT_ATOMIC_MIN_U32
+GLOBAL_ATOMIC_MIN_U32
+none
+FLAT_ATOMIC_MAX_I32
+GLOBAL_ATOMIC_MAX_I32
+none
+FLAT_ATOMIC_MAX_U32
+GLOBAL_ATOMIC_MAX_U32
+none
+FLAT_ATOMIC_AND_B32
+GLOBAL_ATOMIC_AND_B32
+none
+FLAT_ATOMIC_OR_B32
+GLOBAL_ATOMIC_OR_B32
+none
+FLAT_ATOMIC_XOR_B32
+GLOBAL_ATOMIC_XOR_B32
+none
+FLAT_ATOMIC_INC_U32
+GLOBAL_ATOMIC_INC_U32
+none
+FLAT_ATOMIC_DEC_U32
+GLOBAL_ATOMIC_DEC_U32
+none
+FLAT_ATOMIC_MIN_NUM_F32
+GLOBAL_ATOMIC_MIN_NUM_F32
+none
+FLAT_ATOMIC_MAX_NUM_F32
+GLOBAL_ATOMIC_MAX_NUM_F32
+none
+FLAT_ATOMIC_SWAP_B64
+GLOBAL_ATOMIC_SWAP_B64
+none
+FLAT_ATOMIC_ADD_U64
+GLOBAL_ATOMIC_ADD_U64
+none
+FLAT_ATOMIC_SUB_U64
+GLOBAL_ATOMIC_SUB_U64
+none
+FLAT_ATOMIC_MIN_I64
+GLOBAL_ATOMIC_MIN_I64
+none
+FLAT_ATOMIC_MIN_U64
+GLOBAL_ATOMIC_MIN_U64
+none
+FLAT_ATOMIC_MAX_I64
+GLOBAL_ATOMIC_MAX_I64
+none
+FLAT_ATOMIC_MAX_U64
+GLOBAL_ATOMIC_MAX_U64
+none
+FLAT_ATOMIC_AND_B64
+GLOBAL_ATOMIC_AND_B64
+none
+FLAT_ATOMIC_OR_B64
+GLOBAL_ATOMIC_OR_B64
+none
+FLAT_ATOMIC_XOR_B64
+GLOBAL_ATOMIC_XOR_B64
+none
+FLAT_ATOMIC_INC_U64
+GLOBAL_ATOMIC_INC_U64
+none
+FLAT_ATOMIC_DEC_U64
+GLOBAL_ATOMIC_DEC_U64
+none
+FLAT_ATOMIC_COND_SUB_U32 
+(Supports only "return preOp")
+GLOBAL_ATOMIC_COND_SUB_U32
+(Supports only "return preOp")
+none
+none
+GLOBAL_ATOMIC_SUB_CLAMP_U32
+(Supports only "return preOp")
+none
+none
+GLOBAL_ATOMIC_ORDERED_ADD_
+B64
+(Supports only "return preOp")
+none
+none
+GLOBAL_INV
+none
+none
+GLOBAL_WB
+none
+none
+GLOBAL_WBINV
+none
+"RDNA4" Instruction Set Architecture
+137 of 697
+
+=== PDF PAGE 148 ===
+11.1. Instructions
+11.1.1. FLAT
+The Flat instruction set consists of loads, stores and memory atomic operations. Flat instructions do not use a
+resource constant (V#) or sampler (S#), but they make use of wave state (SCRATCH_BASE) that holds scratch-
+space information in case any threads' address resolves to scratch space. See Scratch section below.
+Flat instructions are executed as both an LDS and a Global instruction, and so Flat instructions increment both
+LOADcnt (or STOREcnt) and DScnt and are not considered done until both have been decremented. Loads,
+atomics-with-return and GLOBAL_INV are tracked with LOADcnt. Stores, atomics-without-return,
+GLOBAL_WB and GLOBAL_WBINV are tracked with STOREcnt.
+When the address from a Flat instruction falls into scratch (private) space, a different ("swizzled") addressing
+mechanism is used. The address (per thread) points to the memory space for a specific DWORD of scratch data
+owned by this thread. The hardware maps this address to the actual memory address that holds data for all of
+the threads in the wave. Flat atomics that map into scratch: 4-byte atomics are supported, and 8-byte atomics
+return MEMVIOL.
+The wave supplies the offset (for space allocated to this wave) with every Flat request. This is stored in a
+dedicated per-wave register: SCRATCH_BASE, that holds a 64-bit byte address.
+The aperture check occurs on the value read from VGPRs, with invalid addresses being routed to the texture
+unit. The "aperture check" is performed before IOFFSET is added into the address, so it is undefined what
+occurs if the addition of IOFFSET pushes the address into a different memory aperture.
+For threads whose address fall into LDS space, the only address check applied is:
+          Out of bounds = Logical_ADDR[16:0] >= Wave_allocated_LDS
+If the thread is not out of bounds, the address is mapped into LDS space by discarding upper address bits. This
+means many virtual addresses may map to the same physical LDS storage.
+11.1.2. Global
+Global operations transfer data between VGPR and global memory. Global instructions are similar to Flat, but
+the programmer is responsible to make sure that no threads access LDS or private space. Because of this, no
+LDS bandwidth is used by global instructions. Since these instructions do not access LDS, only LOADcnt (or
+STOREcnt) is used, not DScnt.
+Global includes two instructions that do not use any VGPRs for addressing, just SGPRs and IOFFSET:
+• GLOBAL_LOAD_ADDTID_B32
+• GLOBAL_STORE_ADDTID_B32
+11.1.3. Scratch
+Scratch instructions are similar to global but they access a private (per-thread) memory space that is swizzled.
+Because of this, no LDS bandwidth is used by scratch instructions. Scratch instructions also support multi-
+DWORD access and mis-aligned access (although mis-aligned is slower).
+"RDNA4" Instruction Set Architecture
+11.1. Instructions
+138 of 697
+
+=== PDF PAGE 149 ===
+Since these instructions do not access LDS, only LOADcnt (or STOREcnt) is used, not DScnt. It is not possible
+for a scratch instruction to access LDS, and so no error checking is done (and no aperture check is performed).
+11.2. Addressing
+Global, Flat and Scratch each have their own addressing modes. Flat addressing is a subset of the global and
+scratch modes. 64-bit addresses are stored with the LSB’s in the VGPR at ADDR, and the MSBs in the VGPR at
+ADDR+1.
+There are 4 distinct shader instructions:
+• GLOBAL
+• SCRATCH
+• LDS
+• FLAT - based on per-thread address (VGPR), can load/store: global memory, LDS or scratch memory.
+Table 68. Selecting Addressing Mode
+Instruction Type
+Instruction Modes
+SVE
+SADDR
+Scratch
+SV
+1
+NULL
+SS
+0
+! NULL
+ST
+0
+NULL
+SVS
+1
+! NULL
+Flat and Global
+GV
+ignored
+NULL
+GT
+Global only: Indicated by opcode
+LDS
+LDS
+Indicated by opcode
+Global Addressing
+GV
+mem_addr = VGPRU64 + IOFFSETI24
+GVS
+mem_addr = SGPRU64 + VGPRU32 + IOFFSETI24
+GT
+mem_addr = SGPRU64 + IOFFSETI24 + ThreadID*4
+LDS Addressing (DS ops)
+LDS
+LDS_ADDR = VGPR_addrU32 + IOFFSETU16
+LDS address is relative to the LDS space allocated to this wave.
+Scratch Addressing
+SV
+mem_addr = SCRATCH_BASEU64 + SWIZZLE(VGPR_offsetI32 + IOFFSETI24, ThreadID)
+SS
+mem_addr = SCRATCH_BASEU64 + SWIZZLE(SGPR_offsetI32 + IOFFSETI24, ThreadID)
+SVS
+mem_addr = SCRATCH_BASEU64 + SWIZZLE(SGPR_offsetI32 + VGPR_offsetI32 + IOFFSETI24, ThreadID)
+ST
+mem_addr = SCRATCH_BASEU64 + SWIZZLE(IOFFSETI24, ThreadID)
+The combined offsets inside SWIZZLE() must result in a non-negative number.
+The offset value from SGPRs and VGPRs are signed 32-bit byte offsets.
+IOFFSET: In Scratch ST mode, the IOFFSET must be aligned to the payload size: 4 byte aligned for 1-DWORD,
+16-byte aligned for 4-DWORD.
+For reference, BUFFER_LOAD when using swizzled-addressing is:
+"RDNA4" Instruction Set Architecture
+11.2. Addressing
+139 of 697
+
+=== PDF PAGE 150 ===
+BUFFER_LOAD: Addr = T#.base + Soffset + swizzle( (Vidx + TID) * stride + Ioff + Voff)
+Flat Addressing
+Flat instructions use the "GV" addressing mode. Aperture test on the address determines:
+Global/LDS/Scratch per thread. The aperture test uses only the base address, not the IOFFSET.
+Normal (GV)
+addr[63:0] = VGPRU64 + IOFFSETI24
+Next the aperture check is performed on each thread to determine which memory space it falls into, using
+"ADDR" from the previous table:
+    Aperture check, given 64-bit address from VGPR:
+        isLDS     = (ADDR[63:32] == { SH_MEM_BASES.SHARED_BASE[15:0],  16'b0000 }
+        isScratch = (ADDR[63:32] == { SH_MEM_BASES.PRIVATE_BASE[15:0], 16'b0000 }
+        isHole    =  ADDR[63:47] != (all zeros or all ones) && !isLDS && !isScratch
+        isGlobal  = !isLDS && !isScratch && !isHole
+See Memory Aperture Query for the definition of the aperture ranges.
+Depending on which memory space each thread falls into a different addressing calculation applies:
+Aperture
+Address Calculation
+GLOBAL
+mem_addr = addr
+SCRATCH (SV)
+mem_addr = SCRATCH_BASE(sgpr:U64) + SWIZZLE(addr[31:0], ThreadID)  
+LDS
+LDS_ADDR.U17 = VGPR(addr)[16:0] + IOFFSET[16:0]  
+LDS address math is truncated and may wrap around without being detected as out-of-range.
+The only range check is: LDS_ADDR.U17 < LDS_SIZE (space allocated to wave), with the
+LDS_ADDR zero-extended (not sign-extended) for the range-check.
+Hole
+Memory Violation
+11.3. Memory Error Checking
+Both Cache and LDS can report that an error occurred due to a bad address. This can occur due to:
+• Invalid address (outside any aperture)
+• Write to read-only global memory address (page is read-only)
+• Misaligned data (scratch accesses may be misaligned)
+• Out-of-range address:
+◦LDS access with an address outside the range: [ 0, LDS_SIZE-1 ]
+The policy for threads with bad addresses is: stores outside this range do not store a value, and reads return
+zero. The aperture check for invalid address occurs before adding any address offsets - it is based only on the
+base address; the other checks are performed after adding the offsets.
+Addressing errors from either LDS or VMEM set the wave’s MEMVIOL bit, and also causes an exception (trap).
+"RDNA4" Instruction Set Architecture
+11.3. Memory Error Checking
+140 of 697
+
+=== PDF PAGE 151 ===
+11.4. Data
+FLAT instructions can use from zero to four consecutive DWORDs of data in VGPRs and/or memory. The DATA
+field determines which VGPR(s) supply source data (if any) and the VDST VGPRs hold return data (if any).
+There is no data-format conversion performed.
+"D16" instructions use only 16-bit of the VGPR instead of the full 32bits. "D16_HI" instructions read or write
+only the high 16-bits, while "D16" use the low 16-bits.
+11.5. Block VGPR Load & Store
+These instructions can be used to efficiently move consecutive blocks of up to 32 VGPRs to and from memory:
+GLOBAL_LOAD_BLOCK
+VDST, VADDR, SADDR, IOFFSET, (M0)
+GLOBAL_STORE_BLOCK
+VSRC, VADDR, SADDR, IOFFSET, (M0)
+SCRATCH_LOAD_BLOCK
+VDST, VADDR, SADDR, IOFFSET, (M0)
+SCRATCH_STORE_BLOCK
+VSRC, VADDR, SADDR, IOFFSET, (M0)
+Data is transferred from consecutive VGPRs to consecutive DWORDs in memory (per thread), with the option
+of skipping some VGPRs (but still skipping the memory location - not compacted in memory).
+The instruction fields are identical to SCRATCH and GLOBAL instructions except for the use of M0 to carry a
+bitmask of which VGPRs to load/store (1) or skip (0). The LSB of M0 is for the first VGPR.
+GLOBAL_LOAD and GLOBAL_STORE support the "GV" and "GVS" addressing modes, but not "GT";
+SCRATCH_LOAD and SCRATCH_STORE support the "SS", "SV" and "SVS" addressing modes, but not "ST".
+The block load/store addresses memory as if the IOFFSET field was incremented by 4 bytes for each VGPR,
+regardless of whether it was actually transferred or not (based on M0 bits).
+Block loads must load data into their own source VGPRs.
+    for (n = 0..31)
+        if (M0[n])
+            load/store using IOFFSET and VGPR[vdst/vdata + n]
+        IOFFSET += 4 bytes
+If M0==0, no data is transferred.
+The entire block load/store is tracked with LOADcnt or STOREcnt: increments 1 for the entire block transfer,
+and decrements when the block transfer has completed.
+11.5.1. Error Handling
+Out-of-range address VGPRs follow the same rules as Global and Scratch.
+Out-of-range dest VGPRs for loads:
+each DWORD of the instruction is individually checked for out-of-range. Those that are in-range execute
+"RDNA4" Instruction Set Architecture
+11.4. Data
+141 of 697
+
+=== PDF PAGE 152 ===
+normally, and those that are out-of-range are ignored.
+Out-of-range VSRC VGPRs for stores:
+each DWORD of the instruction is individually checked for out-of-range. Those that are in-range supply data as
+specified, and those out of range read data from VGPR0.
+11.6. WMMA Matrix Load Ops with Transpose
+Matrices are often stored in memory in a tiled manner. RDNA4 has instructions that simplify loading of 16x16
+matrix tiles into VGPRs where the matrix in memory has the opposite major order (row vs. column) as required
+by the WMMA operations. The instructions load and transpose a block of memory into VGPRs.
+See WMMA Ops for information on WMMA matrix storage in VGPRs and matrix multiply operations.
+11.6.1. Dense Matrices
+An "A-matrix" of (M rows x K columns) is composed of elements (1 or 2 bytes each for this discussion) arranged
+in memory in either row-major or column-major. The examples below show the layout for a 16x16 matrix.
+Row Major Data in memory for A-matrix (MxK)
+Memory_address = (col# + row# * K) * ElementSize (# of bytes)
+Column Major Data in memory for B-matrix (KxN)
+Memory_address = (col# * K + row#) * ElementSize (# of bytes)
+11.6.2. WMMA Load-Transpose Instructions
+These two instructions perform a load of an 8-bit or 16-bit 16x16 matrix and transpose row and column major
+order.
+If EXEC==0, the instruction acts like an S_NOP; otherwise these instructions require that EXEC be set to all
+ones, else the operation is undefined.
+The diagrams below show which matrix element each of the 32 lanes in a wave32 loads in a A-matrix. E.g. lane
+0 loads 64 bits of contiguous memory and stores it in the matrix: K=0, M=0..7. B-matrix loads are similar: one
+lane loads multiple contiguous N-values along single K-dimension index.
+"RDNA4" Instruction Set Architecture
+11.6. WMMA Matrix Load Ops with Transpose
+142 of 697
+
+=== PDF PAGE 153 ===
+Instructions
+Description
+GLOBAL_LOAD_TR_B128
+Load a 16x16 matrix of 16-bit data into VGPRs and transpose between row-major and column-
+major order.
+This instruction loads the same amount of data for both wave32 and wave64:
+wave32 loads data into 4 consecutive VGPRs;
+wave64 loads data into 2 consecutive VGPRs but use only addresses from lanes 0-31 (that
+refers to 128-bit data) and ignore addresses in lanes 32-63. 
+This instruction behaves similarly to GLOBAL_LOAD_B128 except that after the 16
+consecutive memory bytes are read (per lane), they are transposed before being stored into
+VGPRS: instead of filling two consecutive VGPRs, they fill 16-bits in each of 8 VGPRs.
+GLOBAL_LOAD_TR_B64
+Load a 16x16 matrix of 8-bit data into VGPRs and transpose between row-major and column-
+major order.
+This instruction loads the same amount of data for both wave32 and wave64:
+wave32 loads data into 2 consecutive VGPRs;
+wave64 loads data into 1 VGPR but use only addresses from lanes 0-31 (that refers to 64-bit
+data) and ignore addresses in lanes 32-63. This instruction behaves similarly to
+GLOBAL_LOAD_B64 except that after the 8 consecutive memory bytes are read (per lane),
+they are transposed before being stored into VGPRS: instead of filling two consecutive VGPRs,
+they fill 16-bits in each of 8 VGPRs.
+All fields of these instructions are identical to GLOBAL_LOAD_B64 and _B128, and as loads they are tracked
+with LOADcnt.
+Memory order
+Element
+Size
+Wave
+Size
+VGPR Layout
+Instruction to use
+Row Major
+16
+32
+Row Major
+GLOBAL_LOAD_B128
+Row Major
+16
+64
+Row Major
+GLOBAL_LOAD_B64
+Column Major
+16
+32
+Row Major
+GLOBAL_LOAD_TR_B128 — writes 128 bits per lane x 32 lanes
+Column Major
+16
+64
+Row Major
+GLOBAL_LOAD_TR_B128 — writes 64bits per lane x 64 lanes
+Row Major
+8
+32
+Row Major
+GLOBAL_LOAD_B64
+Row Major
+8
+64
+Row Major
+GLOBAL_LOAD_B32
+Column Major
+8
+32
+Row Major
+GLOBAL_LOAD_TR_B64 — writes 64 bits per lane x 32 lanes
+Column Major
+8
+64
+Row Major
+GLOBAL_LOAD_TR_B64 — writes 32bits per lane x 64 lanes
+• The above table can also be used when "VGPR Layout" is column-major: simply reverse the "memory
+order" meaning between "Row" and "Column".
+"RDNA4" Instruction Set Architecture
+11.6. WMMA Matrix Load Ops with Transpose
+143 of 697
+

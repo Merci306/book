@@ -1,0 +1,140 @@
+=== PDF PAGE 166 ===
+Chapter 13. Float Memory Atomics
+Floating point atomics can be issued as LDS, Buffer, and Flat/Global/Scratch instructions.
+Memory atomics do not report any numeric exceptions (e.g. signaling NaN).
+13.1. Rounding
+LDS and Memory atomics have the rounding mode for float-atomic-add fixed at "round to nearest even". The
+MODE.round bits are ignored for atomics.
+13.2. Denormals
+When these operate on floating point data, there is the possibility of the data containing denormal numbers, or
+the operation producing a denormal. The floating point atomic instructions have the option of passing
+denormal values through, or flushing them to zero.
+LDS-indexed instructions allow denormals to be passed through or flushed to zero based on the
+MODE.denormal wave-state register. As with VALU ops, "denorm_single" affects F32 ops and "denorm_double"
+affects F64 and F16. LDS instructions use both FP_DENORM bits (allow_input_denormal,
+allow_output_denormal) to control flushing of inputs and outputs separately. Using MODE allows LDS and
+VALU to produce identical results for float ops.
+• Float 16 and 32 bit adder uses both input and output denorm flush controls from MODE
+• Float 64 bit adder does not flush denorms
+• Float MIN and MAX use only the "input denormal" flushing control
+◦Each input to the comparisons flushes the mantissa of both operands to zero before the compare if the
+exponent is zero and the flush denorm control is active.
+◦Min and Max flush input denormals first when enabled, then perform the Min/Max operation on the
+flushed denormals
+◦Float CompareStore ("compare swap") flushes both input and output denormals based on the "flush
+input denormals" control.
+LDS (DS)
+LDS (FLAT)
+L2 Cache
+Data Fabric
+Operation
+Flush
+Input
+Denorm
+Flush
+Output
+Denorm
+Flush
+Input
+Denorm
+Flush
+Output
+Denorm
+Flush
+Input
+Denorm
+Flush
+Output
+Denorm
+Flush
+Input
+Denorm
+Flush
+Output
+Denorm
+ADD_F32
+Mode.I
+Mode.O
+NoFlush
+NoFlush
+NoFlush
+NoFlush
+Reg
+Reg
+PK_ADD_F16 / _BF16
+Mode.I
+Mode.O
+NoFlush
+NoFlush
+NoFlush
+NoFlush
+Reg
+Reg
+Compare-Store /
+Compare-Swap
+Mode.I
+Mode.I
+NoFlush
+NoFlush
+NoFlush
+NoFlush
+NoFlush
+NoFlush
+• NoFlush: Do No flush denorms
+• Mode.I : flushing is controlled by MODE.denorm (input denormal control)
+• Mode.O : flushing is controlled by MODE.denorm (output denormal control)
+• Reg : denormal flushing is controlled by a config register (which should be set to "No flush")
+"RDNA4" Instruction Set Architecture
+13.1. Rounding
+156 of 697
+
+=== PDF PAGE 167 ===
+Flat instructions that are processed by LDS do not flush denorms, regardless of the MODE.denorm setting.
+CompareStore ("compare swap") flushes the result when input denormal flushing occurs.
+13.3. NaN Handling
+Not A Number ("NaN") is a IEEE-754 value representing a result that cannot be computed.
+There two types of NaN: quiet and signaling
+• Quiet NaN Exponent=0xFF, Mantissa MSB=1
+• Signaling NaN Exponent=0xFF, Mantissa MSB=0 and at least one other mantissa bit ==1
+The LDS does not produce any exception or "signal" due to a signaling NaN.
+DS_ADD_F32 can create a quiet NaN, or propagate NaN from its inputs: if either input is a NaN, the output is
+that same NaN, and if both inputs are NaN, the NaN from the first input is selected as the output. Signaling NaN
+is converted to Quiet NaN.
+When denormals are flushed (see table in previous section), they are flushed before the operation (i.e. before
+the comparison).
+FP MAX / MIN Selection Rules
+    if      (Src0==NaN)    result = quiet(Src0)    // either SNaN or QNaN
+    else if (Src1==NaN)    result = quiet(Src1)
+    else if (Src0>Src1)    larger_of (src0, src1)  // or smaller_of  for Minimum
+    "Larger_of" order from smallest to largest: -inf, -float, -denorm, -0, +0, +denorm, +float, +inf
+    -0 < +0.  Preserves -0.  If any input is sNaN, signal invalid exception.
+    "Smaller_of" order from smallest to largest: -inf, -float, -denorm, -0, +0, +denorm, +float, +inf
+    -0 < +0.  Preserves -0.  If any input is sNaN, signal invalid exception.
+FP MAXNUM / MINNUM Selection Rules
+    if      (src0 == SNaN or QNaN)  && (src1 == SNaN or QNaN) result = QNaN (src0)
+    else if (src0 == SNaN or QNaN)  result = src1
+    else if (src1 == SNaN or QNaN)  result = src0
+    else                            result = larger_of (src0, src1)  // or smaller_of for minimumNumber
+    "Larger_of" order from smallest to largest: -inf, -float, -denorm, -0, +0, +denorm, +float, +inf
+    -0 < +0.  Preserves -0.  If any input is sNaN, signal invalid exception.
+    "Smaller_of" order from smallest to largest: -inf, -float, -denorm, -0, +0, +denorm, +float, +inf
+    -0 < +0.  Preserves -0.  If any input is sNaN, signal invalid exception.
+
+Memory atomics use the MINNUM / MAXNUM style.
+For VALU ops, when CLAMP=1 any NaN result is clamped to zero, and exceptions are reported before applying
+the CLAMP.
+"RDNA4" Instruction Set Architecture
+13.3. NaN Handling
+157 of 697
+
+=== PDF PAGE 168 ===
+Float Add rules:
+1. if SRC0 == NaN: result = QNaN of SRC0 (preserve sign)
+2. else if SRC1 == NaN: result = QNaN of SRC1 (preserve sign)
+3. else if SRC0 ==INF and SRC1==INF and signs differ: -QNAN (FP32: 0xFFC00000)
+4. else if SRC0 == INF: result = SRC0
+5. else if SRC1 == INF: result = SRC1
+"RDNA4" Instruction Set Architecture
+13.3. NaN Handling
+158 of 697
+

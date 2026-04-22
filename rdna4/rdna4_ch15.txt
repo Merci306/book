@@ -1,0 +1,5350 @@
+=== PDF PAGE 172 ===
+Chapter 15. Microcode Formats
+This section specifies the microcode formats. The definitions can be used to simplify compilation by providing
+standard templates and enumeration names for the various instruction formats.
+Endian Order - The RDNA4 architecture addresses memory and registers using little-endian byte-ordering and
+bit-ordering. Multi-byte values are stored with their least-significant (low-order) byte at the lowest byte
+address, and they are illustrated with their least-significant byte at the right side. Byte values are stored with
+their least-significant (low-order) bit (LSB) at the lowest bit address, and they are illustrated with their LSB at
+the right side.
+SALU and VALU instructions may optionally include a 32-bit literal constant, and some VALU instructions may
+include a 32-bit DPP control DWORD at the end of the instructions. No instruction may use both DPP and a
+literal constant.
+The table below summarizes the microcode formats and their widths, not including extra literal or DPP
+instruction words. The sections that follow provide details.
+Table 73. Summary of Microcode Formats
+Microcode Formats
+Reference
+Width (bits)
+Scalar ALU and Control Formats
+SOP2
+SOP2
+32
+SOP1
+SOP1
+SOPK
+SOPK
+SOPP
+SOPP
+SOPC
+SOPC
+Scalar Memory Format
+SMEM
+SMEM
+64
+Vector ALU Format
+VOP1
+VOP1
+32
+VOP2
+VOP2
+32
+VOPC
+VOPC
+32
+VOP3
+VOP3
+64
+VOP3SD
+VOP3SD
+64
+VOP3P
+VOP3P
+64
+VOPD
+VOPD
+64
+DPP16
+DPP16
+32
+DPP8
+DPP8
+32
+Vector Parameter Interpolation Format
+VINTERP
+VINTERP
+64
+LDS Parameter Load and Direct Load
+VDSDIR
+VDSDIR
+32
+Data Share Format
+VDS
+VDS
+64
+Vector Memory Buffer Format
+VBUFFER
+VBUFFER
+96
+Vector Memory Image Formats
+VIMAGE
+VIMAGE
+96
+"RDNA4" Instruction Set Architecture
+162 of 697
+
+=== PDF PAGE 173 ===
+Microcode Formats
+Reference
+Width (bits)
+VSAMPLE
+VSAMPLE
+96
+Flat, Global and Scratch Formats
+VFLAT
+VFLAT
+96
+VGLOBAL
+VGLOBAL
+96
+VSCRATCH
+VSCRATCH
+96
+Export Format
+VEXPORT
+VEXPORT
+64
+
+Any instruction field marked as "Reserved" must be set to zero.
+Instruction Suffixes
+Most instructions include a suffix that indicates the data type the instruction handles. This suffix may also
+include a number that indicates the size of the data.
+For example: "F32" indicates "32-bit floating point data", or "B16" is "16-bit binary data".
+• B = Binary
+• F = Floating point
+• BF = "brain-float" floating point
+• U = Unsigned integer
+• I = Signed integer
+• U = Unsigned integer
+• IU = Signed or Unsigned integer
+When more than one data-type specifier occurs in an instruction, the first one is the result type and size, and
+the later one(s) is/are input data type and size.
+E.g. V_CVT_F32_I32 reads an integer and writes a float.
+"RDNA4" Instruction Set Architecture
+163 of 697
+
+=== PDF PAGE 174 ===
+15.1. Scalar ALU and Control Formats
+15.1.1. SOP2
+Description
+This is a scalar instruction with two inputs and one output. Can be followed by a 32-bit
+literal constant.
+Table 74. SOP2 Fields
+Field Name
+Bits
+Format or Description
+SSRC0
+[7:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-233
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249 - 252
+253
+254
+255
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+Reserved.
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+SSRC1
+[15:8]
+Second scalar source operand.
+Same codes as SSRC0, above.
+SDST
+[22:16]
+Scalar destination.
+Same codes as SSRC0, above except only codes 0-127 are valid.
+OP
+[29:23]
+See Opcode table below.
+ENCODING
+[31:30]
+'b10
+Table 75. SOP2 Opcodes
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+164 of 697
+
+=== PDF PAGE 175 ===
+Opcode #
+Name
+Opcode #
+Name
+0
+S_ADD_CO_U32
+38
+S_BFE_U32
+1
+S_SUB_CO_U32
+39
+S_BFE_I32
+2
+S_ADD_CO_I32
+40
+S_BFE_U64
+3
+S_SUB_CO_I32
+41
+S_BFE_I64
+4
+S_ADD_CO_CI_U32
+42
+S_BFM_B32
+5
+S_SUB_CO_CI_U32
+43
+S_BFM_B64
+6
+S_ABSDIFF_I32
+44
+S_MUL_I32
+8
+S_LSHL_B32
+45
+S_MUL_HI_U32
+9
+S_LSHL_B64
+46
+S_MUL_HI_I32
+10
+S_LSHR_B32
+48
+S_CSELECT_B32
+11
+S_LSHR_B64
+49
+S_CSELECT_B64
+12
+S_ASHR_I32
+50
+S_PACK_LL_B32_B16
+13
+S_ASHR_I64
+51
+S_PACK_LH_B32_B16
+14
+S_LSHL1_ADD_U32
+52
+S_PACK_HH_B32_B16
+15
+S_LSHL2_ADD_U32
+53
+S_PACK_HL_B32_B16
+16
+S_LSHL3_ADD_U32
+64
+S_ADD_F32
+17
+S_LSHL4_ADD_U32
+65
+S_SUB_F32
+18
+S_MIN_I32
+66
+S_MIN_NUM_F32
+19
+S_MIN_U32
+67
+S_MAX_NUM_F32
+20
+S_MAX_I32
+68
+S_MUL_F32
+21
+S_MAX_U32
+69
+S_FMAAK_F32
+22
+S_AND_B32
+70
+S_FMAMK_F32
+23
+S_AND_B64
+71
+S_FMAC_F32
+24
+S_OR_B32
+72
+S_CVT_PK_RTZ_F16_F32
+25
+S_OR_B64
+73
+S_ADD_F16
+26
+S_XOR_B32
+74
+S_SUB_F16
+27
+S_XOR_B64
+75
+S_MIN_NUM_F16
+28
+S_NAND_B32
+76
+S_MAX_NUM_F16
+29
+S_NAND_B64
+77
+S_MUL_F16
+30
+S_NOR_B32
+78
+S_FMAC_F16
+31
+S_NOR_B64
+79
+S_MINIMUM_F32
+32
+S_XNOR_B32
+80
+S_MAXIMUM_F32
+33
+S_XNOR_B64
+81
+S_MINIMUM_F16
+34
+S_AND_NOT1_B32
+82
+S_MAXIMUM_F16
+35
+S_AND_NOT1_B64
+83
+S_ADD_NC_U64
+36
+S_OR_NOT1_B32
+84
+S_SUB_NC_U64
+37
+S_OR_NOT1_B64
+85
+S_MUL_U64
+15.1.2. SOPK
+Description
+This is a scalar instruction with one 16-bit signed immediate (SIMM16) input and a single
+destination. Instructions that take 2 inputs use the destination as the first input and the
+SIMM16 as the second input.
+E.g. "S_ADDK_I32 S0, 1" means "S0 = S0 + 1".
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+165 of 697
+
+=== PDF PAGE 176 ===
+Table 76. SOPK Fields
+Field Name
+Bits
+Format or Description
+SIMM16
+[15:0]
+Signed immediate 16-bit value.
+SDST
+[22:16]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+Scalar destination, and can provide second source operand.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+M0. Memory register 0.
+NULL
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+OP
+[27:23]
+See Opcode table below.
+ENCODING
+[31:28]
+'b1011
+Table 77. SOPK Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+S_MOVK_I32
+17
+S_GETREG_B32
+1
+S_VERSION
+18
+S_SETREG_B32
+2
+S_CMOVK_I32
+19
+S_SETREG_IMM32_B32
+15
+S_ADDK_CO_I32
+20
+S_CALL_B64
+16
+S_MULK_I32
+15.1.3. SOP1
+Description
+This is a scalar instruction with two inputs and one output. Can be followed by a 32-bit
+literal constant.
+Table 78. SOP1 Fields
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+166 of 697
+
+=== PDF PAGE 177 ===
+Field Name
+Bits
+Format or Description
+SSRC0
+[7:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-233
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249 - 252
+253
+254
+255
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+Reserved.
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+OP
+[15:8]
+See Opcode table below.
+SDST
+[22:16]
+Scalar destination.
+Same codes as SSRC0, above except only codes 0-127 are valid.
+ENCODING
+[31:23]
+'b10_1111101
+Table 79. SOP1 Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+S_MOV_B32
+50
+S_OR_NOT1_SAVEEXEC_B32
+1
+S_MOV_B64
+51
+S_OR_NOT1_SAVEEXEC_B64
+2
+S_CMOV_B32
+52
+S_AND_NOT0_WREXEC_B32
+3
+S_CMOV_B64
+53
+S_AND_NOT0_WREXEC_B64
+4
+S_BREV_B32
+54
+S_AND_NOT1_WREXEC_B32
+5
+S_BREV_B64
+55
+S_AND_NOT1_WREXEC_B64
+8
+S_CTZ_I32_B32
+64
+S_MOVRELS_B32
+9
+S_CTZ_I32_B64
+65
+S_MOVRELS_B64
+10
+S_CLZ_I32_U32
+66
+S_MOVRELD_B32
+11
+S_CLZ_I32_U64
+67
+S_MOVRELD_B64
+12
+S_CLS_I32
+68
+S_MOVRELSD_2_B32
+13
+S_CLS_I32_I64
+71
+S_GETPC_B64
+14
+S_SEXT_I32_I8
+72
+S_SETPC_B64
+15
+S_SEXT_I32_I16
+73
+S_SWAPPC_B64
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+167 of 697
+
+=== PDF PAGE 178 ===
+Opcode #
+Name
+Opcode #
+Name
+16
+S_BITSET0_B32
+74
+S_RFE_B64
+17
+S_BITSET0_B64
+76
+S_SENDMSG_RTN_B32
+18
+S_BITSET1_B32
+77
+S_SENDMSG_RTN_B64
+19
+S_BITSET1_B64
+78
+S_BARRIER_SIGNAL
+20
+S_BITREPLICATE_B64_B32
+79
+S_BARRIER_SIGNAL_ISFIRST
+21
+S_ABS_I32
+80
+S_GET_BARRIER_STATE
+22
+S_BCNT0_I32_B32
+81
+Reserved
+23
+S_BCNT0_I32_B64
+82
+Reserved
+24
+S_BCNT1_I32_B32
+83
+S_ALLOC_VGPR
+25
+S_BCNT1_I32_B64
+84
+Reserved
+26
+S_QUADMASK_B32
+85
+Reserved
+27
+S_QUADMASK_B64
+86
+Reserved
+28
+S_WQM_B32
+87
+Reserved
+29
+S_WQM_B64
+88
+S_SLEEP_VAR
+30
+S_NOT_B32
+91
+Reserved
+31
+S_NOT_B64
+92
+Reserved
+32
+S_AND_SAVEEXEC_B32
+93
+Reserved
+33
+S_AND_SAVEEXEC_B64
+94
+Reserved
+34
+S_OR_SAVEEXEC_B32
+95
+Reserved
+35
+S_OR_SAVEEXEC_B64
+96
+S_CEIL_F32
+36
+S_XOR_SAVEEXEC_B32
+97
+S_FLOOR_F32
+37
+S_XOR_SAVEEXEC_B64
+98
+S_TRUNC_F32
+38
+S_NAND_SAVEEXEC_B32
+99
+S_RNDNE_F32
+39
+S_NAND_SAVEEXEC_B64
+100
+S_CVT_F32_I32
+40
+S_NOR_SAVEEXEC_B32
+101
+S_CVT_F32_U32
+41
+S_NOR_SAVEEXEC_B64
+102
+S_CVT_I32_F32
+42
+S_XNOR_SAVEEXEC_B32
+103
+S_CVT_U32_F32
+43
+S_XNOR_SAVEEXEC_B64
+104
+S_CVT_F16_F32
+44
+S_AND_NOT0_SAVEEXEC_B32
+105
+S_CVT_F32_F16
+45
+S_AND_NOT0_SAVEEXEC_B64
+106
+S_CVT_HI_F32_F16
+46
+S_OR_NOT0_SAVEEXEC_B32
+107
+S_CEIL_F16
+47
+S_OR_NOT0_SAVEEXEC_B64
+108
+S_FLOOR_F16
+48
+S_AND_NOT1_SAVEEXEC_B32
+109
+S_TRUNC_F16
+49
+S_AND_NOT1_SAVEEXEC_B64
+110
+S_RNDNE_F16
+15.1.4. SOPC
+Description
+This is a scalar instruction with two inputs that are compared and produces SCC as a
+result. Can be followed by a 32-bit literal constant.
+Table 80. SOPC Fields
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+168 of 697
+
+=== PDF PAGE 179 ===
+Field Name
+Bits
+Format or Description
+SSRC0
+[7:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-233
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+249 - 252
+253
+254
+255
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+Reserved.
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+SSRC1
+[15:8]
+Second scalar source operand.
+Same codes as SSRC0, above.
+OP
+[22:16]
+See Opcode table below.
+ENCODING
+[31:23]
+'b10_1111110
+Table 81. SOPC Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+S_CMP_EQ_I32
+70
+S_CMP_GE_F32
+1
+S_CMP_LG_I32
+71
+S_CMP_O_F32
+2
+S_CMP_GT_I32
+72
+S_CMP_U_F32
+3
+S_CMP_GE_I32
+73
+S_CMP_NGE_F32
+4
+S_CMP_LT_I32
+74
+S_CMP_NLG_F32
+5
+S_CMP_LE_I32
+75
+S_CMP_NGT_F32
+6
+S_CMP_EQ_U32
+76
+S_CMP_NLE_F32
+7
+S_CMP_LG_U32
+77
+S_CMP_NEQ_F32
+8
+S_CMP_GT_U32
+78
+S_CMP_NLT_F32
+9
+S_CMP_GE_U32
+81
+S_CMP_LT_F16
+10
+S_CMP_LT_U32
+82
+S_CMP_EQ_F16
+11
+S_CMP_LE_U32
+83
+S_CMP_LE_F16
+12
+S_BITCMP0_B32
+84
+S_CMP_GT_F16
+13
+S_BITCMP1_B32
+85
+S_CMP_LG_F16
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+169 of 697
+
+=== PDF PAGE 180 ===
+Opcode #
+Name
+Opcode #
+Name
+14
+S_BITCMP0_B64
+86
+S_CMP_GE_F16
+15
+S_BITCMP1_B64
+87
+S_CMP_O_F16
+16
+S_CMP_EQ_U64
+88
+S_CMP_U_F16
+17
+S_CMP_LG_U64
+89
+S_CMP_NGE_F16
+65
+S_CMP_LT_F32
+90
+S_CMP_NLG_F16
+66
+S_CMP_EQ_F32
+91
+S_CMP_NGT_F16
+67
+S_CMP_LE_F32
+92
+S_CMP_NLE_F16
+68
+S_CMP_GT_F32
+93
+S_CMP_NEQ_F16
+69
+S_CMP_LG_F32
+94
+S_CMP_NLT_F16
+15.1.5. SOPP
+Description
+This is a scalar instruction with one 16-bit signed immediate (SIMM16) input.
+Table 82. SOPP Fields
+Field Name
+Bits
+Format or Description
+SIMM16
+[15:0]
+Signed immediate 16-bit value.
+OP
+[22:16] See Opcode table below.
+ENCODING
+[31:23] 'b10_1111111
+Table 83. SOPP Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+S_NOP
+37
+S_CBRANCH_EXECZ
+1
+S_SETKILL
+38
+S_CBRANCH_EXECNZ
+2
+S_SETHALT
+48
+S_ENDPGM
+3
+S_SLEEP
+49
+S_ENDPGM_SAVED
+5
+S_CLAUSE
+52
+S_WAKEUP
+7
+S_DELAY_ALU
+53
+S_SETPRIO
+8
+S_WAIT_ALU
+54
+S_SENDMSG
+9
+S_WAITCNT
+55
+S_SENDMSGHALT
+10
+S_WAIT_IDLE
+56
+S_INCPERFLEVEL
+11
+S_WAIT_EVENT
+57
+S_DECPERFLEVEL
+16
+S_TRAP
+58
+Reserved
+17
+S_ROUND_MODE
+59
+Reserved
+18
+S_DENORM_MODE
+60
+S_ICACHE_INV
+19
+Reserved
+64
+S_WAIT_LOADCNT
+20
+S_BARRIER_WAIT
+65
+S_WAIT_STORECNT
+21
+Reserved
+66
+S_WAIT_SAMPLECNT
+31
+S_CODE_END
+67
+S_WAIT_BVHCNT
+32
+S_BRANCH
+68
+S_WAIT_EXPCNT
+33
+S_CBRANCH_SCC0
+70
+S_WAIT_DSCNT
+34
+S_CBRANCH_SCC1
+71
+S_WAIT_KMCNT
+35
+S_CBRANCH_VCCZ
+72
+S_WAIT_LOADCNT_DSCNT
+36
+S_CBRANCH_VCCNZ
+73
+S_WAIT_STORECNT_DSCNT
+"RDNA4" Instruction Set Architecture
+15.1. Scalar ALU and Control Formats
+170 of 697
+
+=== PDF PAGE 181 ===
+15.2. Scalar Memory Format
+15.2.1. SMEM
+Description
+Scalar Memory data load
+Table 84. SMEM Fields
+Field Name
+Bits
+Format or Description
+SBASE
+[5:0]
+SGPR-pair that provides base address or SGPR-quad that provides V#. (LSB of SGPR
+address is omitted).
+SDATA
+[12:6]
+SGPR that provides write data or accepts return data.
+OP
+[18:13]
+See Opcode table below.
+SCOPE
+[22:21]
+Memory Scope
+TH
+[24:23]
+Memory Temporal Hint
+ENCODING
+[31:26]
+'b111101
+IOFFSET
+[55:32]
+An immediate signed byte offset. Ignored for cache invalidations.
+SOFFSET
+[63:57]
+SGPR that supplies an unsigned byte offset. Disabled if set to NULL.
+Table 85. SMEM Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+S_LOAD_B32
+19
+S_BUFFER_LOAD_B256
+1
+S_LOAD_B64
+20
+S_BUFFER_LOAD_B512
+2
+S_LOAD_B128
+21
+S_BUFFER_LOAD_B96
+3
+S_LOAD_B256
+24
+S_BUFFER_LOAD_I8
+4
+S_LOAD_B512
+25
+S_BUFFER_LOAD_U8
+5
+S_LOAD_B96
+26
+S_BUFFER_LOAD_I16
+8
+S_LOAD_I8
+27
+S_BUFFER_LOAD_U16
+9
+S_LOAD_U8
+33
+S_DCACHE_INV
+10
+S_LOAD_I16
+36
+S_PREFETCH_INST
+11
+S_LOAD_U16
+37
+S_PREFETCH_INST_PC_REL
+16
+S_BUFFER_LOAD_B32
+38
+S_PREFETCH_DATA
+17
+S_BUFFER_LOAD_B64
+39
+S_BUFFER_PREFETCH_DATA
+18
+S_BUFFER_LOAD_B128
+40
+S_PREFETCH_DATA_PC_REL
+"RDNA4" Instruction Set Architecture
+15.2. Scalar Memory Format
+171 of 697
+
+=== PDF PAGE 182 ===
+15.3. Vector ALU Formats
+15.3.1. VOP2
+Description
+Vector ALU format with two input operands. Can be followed by a 32-bit literal constant
+or DPP instruction DWORD when the instruction allows it.
+Table 86. VOP2 Fields
+Field Name
+Bits
+Format or Description
+SRC0
+[8:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+VGPR 0 - 255
+VSRC1
+[16:9]
+VGPR that provides the second operand.
+VDST
+[24:17]
+Destination VGPR.
+OP
+[30:25]
+See Opcode table below.
+ENCODING
+[31]
+'b0
+Table 87. VOP2 Opcodes
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+172 of 697
+
+=== PDF PAGE 183 ===
+Opcode #
+Name
+Opcode #
+Name
+1
+V_CNDMASK_B32
+29
+V_XOR_B32
+2
+V_ADD_F64
+30
+V_XNOR_B32
+3
+V_ADD_F32
+31
+V_LSHLREV_B64
+4
+V_SUB_F32
+32
+V_ADD_CO_CI_U32
+5
+V_SUBREV_F32
+33
+V_SUB_CO_CI_U32
+6
+V_MUL_F64
+34
+V_SUBREV_CO_CI_U32
+7
+V_MUL_DX9_ZERO_F32
+37
+V_ADD_NC_U32
+8
+V_MUL_F32
+38
+V_SUB_NC_U32
+9
+V_MUL_I32_I24
+39
+V_SUBREV_NC_U32
+10
+V_MUL_HI_I32_I24
+43
+V_FMAC_F32
+11
+V_MUL_U32_U24
+44
+V_FMAMK_F32
+12
+V_MUL_HI_U32_U24
+45
+V_FMAAK_F32
+13
+V_MIN_NUM_F64
+47
+V_CVT_PK_RTZ_F16_F32
+14
+V_MAX_NUM_F64
+48
+V_MIN_NUM_F16
+17
+V_MIN_I32
+49
+V_MAX_NUM_F16
+18
+V_MAX_I32
+50
+V_ADD_F16
+19
+V_MIN_U32
+51
+V_SUB_F16
+20
+V_MAX_U32
+52
+V_SUBREV_F16
+21
+V_MIN_NUM_F32
+53
+V_MUL_F16
+22
+V_MAX_NUM_F32
+54
+V_FMAC_F16
+24
+V_LSHLREV_B32
+55
+V_FMAMK_F16
+25
+V_LSHRREV_B32
+56
+V_FMAAK_F16
+26
+V_ASHRREV_I32
+59
+V_LDEXP_F16
+27
+V_AND_B32
+60
+V_PK_FMAC_F16
+28
+V_OR_B32
+15.3.2. VOP1
+Description
+Vector ALU format with one input operand. Can be followed by a 32-bit literal constant or
+DPP instruction DWORD when the instruction allows it.
+Table 88. VOP1 Fields
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+173 of 697
+
+=== PDF PAGE 184 ===
+Field Name
+Bits
+Format or Description
+SRC0
+[8:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+VGPR 0 - 255
+OP
+[15:9]
+See Opcode table below.
+VDST
+[24:17]
+Destination VGPR.
+ENCODING
+[31:25]
+'b0_111111
+Table 89. VOP1 Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+V_NOP
+57
+V_CLZ_I32_U32
+1
+V_MOV_B32
+58
+V_CTZ_I32_B32
+2
+V_READFIRSTLANE_B32
+59
+V_CLS_I32
+3
+V_CVT_I32_F64
+60
+V_FREXP_EXP_I32_F64
+4
+V_CVT_F64_I32
+61
+V_FREXP_MANT_F64
+5
+V_CVT_F32_I32
+62
+V_FRACT_F64
+6
+V_CVT_F32_U32
+63
+V_FREXP_EXP_I32_F32
+7
+V_CVT_U32_F32
+64
+V_FREXP_MANT_F32
+8
+V_CVT_I32_F32
+66
+V_MOVRELD_B32
+10
+V_CVT_F16_F32
+67
+V_MOVRELS_B32
+11
+V_CVT_F32_F16
+68
+V_MOVRELSD_B32
+12
+V_CVT_NEAREST_I32_F32
+72
+V_MOVRELSD_2_B32
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+174 of 697
+
+=== PDF PAGE 185 ===
+Opcode #
+Name
+Opcode #
+Name
+13
+V_CVT_FLOOR_I32_F32
+80
+V_CVT_F16_U16
+14
+V_CVT_OFF_F32_I4
+81
+V_CVT_F16_I16
+15
+V_CVT_F32_F64
+82
+V_CVT_U16_F16
+16
+V_CVT_F64_F32
+83
+V_CVT_I16_F16
+17
+V_CVT_F32_UBYTE0
+84
+V_RCP_F16
+18
+V_CVT_F32_UBYTE1
+85
+V_SQRT_F16
+19
+V_CVT_F32_UBYTE2
+86
+V_RSQ_F16
+20
+V_CVT_F32_UBYTE3
+87
+V_LOG_F16
+21
+V_CVT_U32_F64
+88
+V_EXP_F16
+22
+V_CVT_F64_U32
+89
+V_FREXP_MANT_F16
+23
+V_TRUNC_F64
+90
+V_FREXP_EXP_I16_F16
+24
+V_CEIL_F64
+91
+V_FLOOR_F16
+25
+V_RNDNE_F64
+92
+V_CEIL_F16
+26
+V_FLOOR_F64
+93
+V_TRUNC_F16
+27
+V_PIPEFLUSH
+94
+V_RNDNE_F16
+28
+V_MOV_B16
+95
+V_FRACT_F16
+32
+V_FRACT_F32
+96
+V_SIN_F16
+33
+V_TRUNC_F32
+97
+V_COS_F16
+34
+V_CEIL_F32
+98
+V_SAT_PK_U8_I16
+35
+V_RNDNE_F32
+99
+V_CVT_NORM_I16_F16
+36
+V_FLOOR_F32
+100
+V_CVT_NORM_U16_F16
+37
+V_EXP_F32
+101
+V_SWAP_B32
+39
+V_LOG_F32
+102
+V_SWAP_B16
+42
+V_RCP_F32
+103
+V_PERMLANE64_B32
+43
+V_RCP_IFLAG_F32
+104
+V_SWAPREL_B32
+46
+V_RSQ_F32
+105
+V_NOT_B16
+47
+V_RCP_F64
+106
+V_CVT_I32_I16
+49
+V_RSQ_F64
+107
+V_CVT_U32_U16
+51
+V_SQRT_F32
+108
+V_CVT_F32_FP8
+52
+V_SQRT_F64
+109
+V_CVT_F32_BF8
+53
+V_SIN_F32
+110
+V_CVT_PK_F32_FP8
+54
+V_COS_F32
+111
+V_CVT_PK_F32_BF8
+55
+V_NOT_B32
+112
+Reserved
+56
+V_BFREV_B32
+113
+Reserved
+15.3.3. VOPC
+Description
+Vector instruction taking two inputs and producing a comparison result. Can be followed
+by a 32-bit literal constant or DPP control DWORD. Vector Comparison operations are
+divided into three groups:
+• those that can use any one of 16 comparison operations,
+• those that can use any one of 8, and
+• those that have a single comparison operation.
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+175 of 697
+
+=== PDF PAGE 186 ===
+The final opcode number is determined by adding the base for the opcode family plus the offset from the
+compare op. Compare instructions write a result to VCC (for VOPC) or an SGPR (for VOP3). Additionally,
+compare instructions have variants that writes to the EXEC mask instead of VCC or SGPR. The destination of
+the compare result is VCC or EXEC when encoded using the VOPC format, and can be an arbitrary SGPR
+(indicated in the VDST field) when only encoded in the VOP3 format.
+Comparison Operations
+Table 90. Comparison Operations
+Compare Operation
+Opcode
+Offset
+Description
+Sixteen Compare Operations (COMPF)
+F
+0
+D.u = 0
+LT
+1
+D.u = (S0 < S1)
+EQ
+2
+D.u = (S0 == S1)
+LE
+3
+D.u = (S0 <= S1)
+GT
+4
+D.u = (S0 > S1)
+LG
+5
+D.u = (S0 <> S1)
+GE
+6
+D.u = (S0 >= S1)
+O
+7
+D.u = (!isNaN(S0) && !isNaN(S1))
+U
+8
+D.u = (!isNaN(S0) || !isNaN(S1))
+NGE
+9
+D.u = !(S0 >= S1)
+NLG
+10
+D.u = !(S0 <> S1)
+NGT
+11
+D.u = !(S0 > S1)
+NLE
+12
+D.u = !(S0 <= S1)
+NEQ
+13
+D.u = !(S0 == S1)
+NLT
+14
+D.u = !(S0 < S1)
+TRU
+15
+D.u = 1
+Eight Compare Operations (COMPI)
+F
+0
+D.u = 0
+LT
+1
+D.u = (S0 < S1)
+EQ
+2
+D.u = (S0 == S1)
+LE
+3
+D.u = (S0 <= S1)
+GT
+4
+D.u = (S0 > S1)
+LG
+5
+D.u = (S0 <> S1)
+GE
+6
+D.u = (S0 >= S1)
+TRU
+7
+D.u = 1
+Table 91. VOPC Fields
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+176 of 697
+
+=== PDF PAGE 187 ===
+Field Name
+Bits
+Format or Description
+SRC0
+[8:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+64-bit Literal constant.
+32-bit Literal constant.
+VGPR 0 - 255
+VSRC1
+[16:9]
+VGPR that provides the second operand.
+OP
+[24:17]
+See Opcode table below.
+ENCODING
+[31:25]
+'b0_111110
+Table 92. VOPC Opcodes
+Opcode #
+Name
+Opcode #
+Name
+1
+V_CMP_LT_F16
+129
+V_CMPX_LT_F16
+2
+V_CMP_EQ_F16
+130
+V_CMPX_EQ_F16
+3
+V_CMP_LE_F16
+131
+V_CMPX_LE_F16
+4
+V_CMP_GT_F16
+132
+V_CMPX_GT_F16
+5
+V_CMP_LG_F16
+133
+V_CMPX_LG_F16
+6
+V_CMP_GE_F16
+134
+V_CMPX_GE_F16
+7
+V_CMP_O_F16
+135
+V_CMPX_O_F16
+8
+V_CMP_U_F16
+136
+V_CMPX_U_F16
+9
+V_CMP_NGE_F16
+137
+V_CMPX_NGE_F16
+10
+V_CMP_NLG_F16
+138
+V_CMPX_NLG_F16
+11
+V_CMP_NGT_F16
+139
+V_CMPX_NGT_F16
+12
+V_CMP_NLE_F16
+140
+V_CMPX_NLE_F16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+177 of 697
+
+=== PDF PAGE 188 ===
+Opcode #
+Name
+Opcode #
+Name
+13
+V_CMP_NEQ_F16
+141
+V_CMPX_NEQ_F16
+14
+V_CMP_NLT_F16
+142
+V_CMPX_NLT_F16
+17
+V_CMP_LT_F32
+145
+V_CMPX_LT_F32
+18
+V_CMP_EQ_F32
+146
+V_CMPX_EQ_F32
+19
+V_CMP_LE_F32
+147
+V_CMPX_LE_F32
+20
+V_CMP_GT_F32
+148
+V_CMPX_GT_F32
+21
+V_CMP_LG_F32
+149
+V_CMPX_LG_F32
+22
+V_CMP_GE_F32
+150
+V_CMPX_GE_F32
+23
+V_CMP_O_F32
+151
+V_CMPX_O_F32
+24
+V_CMP_U_F32
+152
+V_CMPX_U_F32
+25
+V_CMP_NGE_F32
+153
+V_CMPX_NGE_F32
+26
+V_CMP_NLG_F32
+154
+V_CMPX_NLG_F32
+27
+V_CMP_NGT_F32
+155
+V_CMPX_NGT_F32
+28
+V_CMP_NLE_F32
+156
+V_CMPX_NLE_F32
+29
+V_CMP_NEQ_F32
+157
+V_CMPX_NEQ_F32
+30
+V_CMP_NLT_F32
+158
+V_CMPX_NLT_F32
+33
+V_CMP_LT_F64
+161
+V_CMPX_LT_F64
+34
+V_CMP_EQ_F64
+162
+V_CMPX_EQ_F64
+35
+V_CMP_LE_F64
+163
+V_CMPX_LE_F64
+36
+V_CMP_GT_F64
+164
+V_CMPX_GT_F64
+37
+V_CMP_LG_F64
+165
+V_CMPX_LG_F64
+38
+V_CMP_GE_F64
+166
+V_CMPX_GE_F64
+39
+V_CMP_O_F64
+167
+V_CMPX_O_F64
+40
+V_CMP_U_F64
+168
+V_CMPX_U_F64
+41
+V_CMP_NGE_F64
+169
+V_CMPX_NGE_F64
+42
+V_CMP_NLG_F64
+170
+V_CMPX_NLG_F64
+43
+V_CMP_NGT_F64
+171
+V_CMPX_NGT_F64
+44
+V_CMP_NLE_F64
+172
+V_CMPX_NLE_F64
+45
+V_CMP_NEQ_F64
+173
+V_CMPX_NEQ_F64
+46
+V_CMP_NLT_F64
+174
+V_CMPX_NLT_F64
+49
+V_CMP_LT_I16
+177
+V_CMPX_LT_I16
+50
+V_CMP_EQ_I16
+178
+V_CMPX_EQ_I16
+51
+V_CMP_LE_I16
+179
+V_CMPX_LE_I16
+52
+V_CMP_GT_I16
+180
+V_CMPX_GT_I16
+53
+V_CMP_NE_I16
+181
+V_CMPX_NE_I16
+54
+V_CMP_GE_I16
+182
+V_CMPX_GE_I16
+57
+V_CMP_LT_U16
+185
+V_CMPX_LT_U16
+58
+V_CMP_EQ_U16
+186
+V_CMPX_EQ_U16
+59
+V_CMP_LE_U16
+187
+V_CMPX_LE_U16
+60
+V_CMP_GT_U16
+188
+V_CMPX_GT_U16
+61
+V_CMP_NE_U16
+189
+V_CMPX_NE_U16
+62
+V_CMP_GE_U16
+190
+V_CMPX_GE_U16
+65
+V_CMP_LT_I32
+193
+V_CMPX_LT_I32
+66
+V_CMP_EQ_I32
+194
+V_CMPX_EQ_I32
+67
+V_CMP_LE_I32
+195
+V_CMPX_LE_I32
+68
+V_CMP_GT_I32
+196
+V_CMPX_GT_I32
+69
+V_CMP_NE_I32
+197
+V_CMPX_NE_I32
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+178 of 697
+
+=== PDF PAGE 189 ===
+Opcode #
+Name
+Opcode #
+Name
+70
+V_CMP_GE_I32
+198
+V_CMPX_GE_I32
+73
+V_CMP_LT_U32
+201
+V_CMPX_LT_U32
+74
+V_CMP_EQ_U32
+202
+V_CMPX_EQ_U32
+75
+V_CMP_LE_U32
+203
+V_CMPX_LE_U32
+76
+V_CMP_GT_U32
+204
+V_CMPX_GT_U32
+77
+V_CMP_NE_U32
+205
+V_CMPX_NE_U32
+78
+V_CMP_GE_U32
+206
+V_CMPX_GE_U32
+81
+V_CMP_LT_I64
+209
+V_CMPX_LT_I64
+82
+V_CMP_EQ_I64
+210
+V_CMPX_EQ_I64
+83
+V_CMP_LE_I64
+211
+V_CMPX_LE_I64
+84
+V_CMP_GT_I64
+212
+V_CMPX_GT_I64
+85
+V_CMP_NE_I64
+213
+V_CMPX_NE_I64
+86
+V_CMP_GE_I64
+214
+V_CMPX_GE_I64
+89
+V_CMP_LT_U64
+217
+V_CMPX_LT_U64
+90
+V_CMP_EQ_U64
+218
+V_CMPX_EQ_U64
+91
+V_CMP_LE_U64
+219
+V_CMPX_LE_U64
+92
+V_CMP_GT_U64
+220
+V_CMPX_GT_U64
+93
+V_CMP_NE_U64
+221
+V_CMPX_NE_U64
+94
+V_CMP_GE_U64
+222
+V_CMPX_GE_U64
+125
+V_CMP_CLASS_F16
+253
+V_CMPX_CLASS_F16
+126
+V_CMP_CLASS_F32
+254
+V_CMPX_CLASS_F32
+127
+V_CMP_CLASS_F64
+255
+V_CMPX_CLASS_F64
+15.3.4. VOP3
+Description
+Vector ALU format with three input operands. Can be followed by a 32-bit literal constant
+or DPP instruction DWORD when the instruction allows it.
+Table 93. VOP3 Fields
+Field Name
+Bits
+Format or Description
+VDST
+[7:0]
+Destination VGPR
+ABS
+[10:8]
+Absolute value of input. [8] = src0, [9] = src1, [10] = src2
+OPSEL
+[14:11]
+Operand select for 16-bit data. 0 = select low half, 1 = select high half. [11] = src0,
+[12] = src1, [13] = src2, [14] = dest.
+CM
+[15]
+Clamp output
+OP
+[25:16]
+Opcode. See next table.
+ENCODING
+[31:26]
+'b110101
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+179 of 697
+
+=== PDF PAGE 190 ===
+Field Name
+Bits
+Format or Description
+SRC0
+[40:32]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+Reserved.
+Literal constant.
+VGPR 0 - 255
+SRC1
+[49:41]
+Second input operand. Same options as SRC0.
+SRC2
+[58:50]
+Third input operand. Same options as SRC0.
+OMOD
+[60:59]
+Output Modifier: 0=none, 1=*2, 2=*4, 3=*0.5
+NEG
+[63:61]
+Negate input. [61] = src0, [62] = src1, [63] = src2
+Table 94. VOP3 Opcodes
+Opcode #
+Name
+Opcode #
+Name
+1
+V_CMP_LT_F16
+400
+V_CVT_F64_F32
+2
+V_CMP_EQ_F16
+401
+V_CVT_F32_UBYTE0
+3
+V_CMP_LE_F16
+402
+V_CVT_F32_UBYTE1
+4
+V_CMP_GT_F16
+403
+V_CVT_F32_UBYTE2
+5
+V_CMP_LG_F16
+404
+V_CVT_F32_UBYTE3
+6
+V_CMP_GE_F16
+405
+V_CVT_U32_F64
+7
+V_CMP_O_F16
+406
+V_CVT_F64_U32
+8
+V_CMP_U_F16
+407
+V_TRUNC_F64
+9
+V_CMP_NGE_F16
+408
+V_CEIL_F64
+10
+V_CMP_NLG_F16
+409
+V_RNDNE_F64
+11
+V_CMP_NGT_F16
+410
+V_FLOOR_F64
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+180 of 697
+
+=== PDF PAGE 191 ===
+Opcode #
+Name
+Opcode #
+Name
+12
+V_CMP_NLE_F16
+411
+V_PIPEFLUSH
+13
+V_CMP_NEQ_F16
+412
+V_MOV_B16
+14
+V_CMP_NLT_F16
+416
+V_FRACT_F32
+17
+V_CMP_LT_F32
+417
+V_TRUNC_F32
+18
+V_CMP_EQ_F32
+418
+V_CEIL_F32
+19
+V_CMP_LE_F32
+419
+V_RNDNE_F32
+20
+V_CMP_GT_F32
+420
+V_FLOOR_F32
+21
+V_CMP_LG_F32
+421
+V_EXP_F32
+22
+V_CMP_GE_F32
+423
+V_LOG_F32
+23
+V_CMP_O_F32
+426
+V_RCP_F32
+24
+V_CMP_U_F32
+427
+V_RCP_IFLAG_F32
+25
+V_CMP_NGE_F32
+430
+V_RSQ_F32
+26
+V_CMP_NLG_F32
+431
+V_RCP_F64
+27
+V_CMP_NGT_F32
+433
+V_RSQ_F64
+28
+V_CMP_NLE_F32
+435
+V_SQRT_F32
+29
+V_CMP_NEQ_F32
+436
+V_SQRT_F64
+30
+V_CMP_NLT_F32
+437
+V_SIN_F32
+33
+V_CMP_LT_F64
+438
+V_COS_F32
+34
+V_CMP_EQ_F64
+439
+V_NOT_B32
+35
+V_CMP_LE_F64
+440
+V_BFREV_B32
+36
+V_CMP_GT_F64
+441
+V_CLZ_I32_U32
+37
+V_CMP_LG_F64
+442
+V_CTZ_I32_B32
+38
+V_CMP_GE_F64
+443
+V_CLS_I32
+39
+V_CMP_O_F64
+444
+V_FREXP_EXP_I32_F64
+40
+V_CMP_U_F64
+445
+V_FREXP_MANT_F64
+41
+V_CMP_NGE_F64
+446
+V_FRACT_F64
+42
+V_CMP_NLG_F64
+447
+V_FREXP_EXP_I32_F32
+43
+V_CMP_NGT_F64
+448
+V_FREXP_MANT_F32
+44
+V_CMP_NLE_F64
+450
+V_MOVRELD_B32
+45
+V_CMP_NEQ_F64
+451
+V_MOVRELS_B32
+46
+V_CMP_NLT_F64
+452
+V_MOVRELSD_B32
+49
+V_CMP_LT_I16
+456
+V_MOVRELSD_2_B32
+50
+V_CMP_EQ_I16
+464
+V_CVT_F16_U16
+51
+V_CMP_LE_I16
+465
+V_CVT_F16_I16
+52
+V_CMP_GT_I16
+466
+V_CVT_U16_F16
+53
+V_CMP_NE_I16
+467
+V_CVT_I16_F16
+54
+V_CMP_GE_I16
+468
+V_RCP_F16
+57
+V_CMP_LT_U16
+469
+V_SQRT_F16
+58
+V_CMP_EQ_U16
+470
+V_RSQ_F16
+59
+V_CMP_LE_U16
+471
+V_LOG_F16
+60
+V_CMP_GT_U16
+472
+V_EXP_F16
+61
+V_CMP_NE_U16
+473
+V_FREXP_MANT_F16
+62
+V_CMP_GE_U16
+474
+V_FREXP_EXP_I16_F16
+65
+V_CMP_LT_I32
+475
+V_FLOOR_F16
+66
+V_CMP_EQ_I32
+476
+V_CEIL_F16
+67
+V_CMP_LE_I32
+477
+V_TRUNC_F16
+68
+V_CMP_GT_I32
+478
+V_RNDNE_F16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+181 of 697
+
+=== PDF PAGE 192 ===
+Opcode #
+Name
+Opcode #
+Name
+69
+V_CMP_NE_I32
+479
+V_FRACT_F16
+70
+V_CMP_GE_I32
+480
+V_SIN_F16
+73
+V_CMP_LT_U32
+481
+V_COS_F16
+74
+V_CMP_EQ_U32
+482
+V_SAT_PK_U8_I16
+75
+V_CMP_LE_U32
+483
+V_CVT_NORM_I16_F16
+76
+V_CMP_GT_U32
+484
+V_CVT_NORM_U16_F16
+77
+V_CMP_NE_U32
+489
+V_NOT_B16
+78
+V_CMP_GE_U32
+490
+V_CVT_I32_I16
+81
+V_CMP_LT_I64
+491
+V_CVT_U32_U16
+82
+V_CMP_EQ_I64
+492
+V_CVT_F32_FP8
+83
+V_CMP_LE_I64
+493
+V_CVT_F32_BF8
+84
+V_CMP_GT_I64
+494
+V_CVT_PK_F32_FP8
+85
+V_CMP_NE_I64
+495
+V_CVT_PK_F32_BF8
+86
+V_CMP_GE_I64
+496
+Reserved
+89
+V_CMP_LT_U64
+497
+Reserved
+90
+V_CMP_EQ_U64
+521
+V_FMA_DX9_ZERO_F32
+91
+V_CMP_LE_U64
+522
+V_MAD_I32_I24
+92
+V_CMP_GT_U64
+523
+V_MAD_U32_U24
+93
+V_CMP_NE_U64
+524
+V_CUBEID_F32
+94
+V_CMP_GE_U64
+525
+V_CUBESC_F32
+125
+V_CMP_CLASS_F16
+526
+V_CUBETC_F32
+126
+V_CMP_CLASS_F32
+527
+V_CUBEMA_F32
+127
+V_CMP_CLASS_F64
+528
+V_BFE_U32
+129
+V_CMPX_LT_F16
+529
+V_BFE_I32
+130
+V_CMPX_EQ_F16
+530
+V_BFI_B32
+131
+V_CMPX_LE_F16
+531
+V_FMA_F32
+132
+V_CMPX_GT_F16
+532
+V_FMA_F64
+133
+V_CMPX_LG_F16
+533
+V_LERP_U8
+134
+V_CMPX_GE_F16
+534
+V_ALIGNBIT_B32
+135
+V_CMPX_O_F16
+535
+V_ALIGNBYTE_B32
+136
+V_CMPX_U_F16
+536
+V_MULLIT_F32
+137
+V_CMPX_NGE_F16
+538
+V_MIN3_I32
+138
+V_CMPX_NLG_F16
+539
+V_MIN3_U32
+139
+V_CMPX_NGT_F16
+541
+V_MAX3_I32
+140
+V_CMPX_NLE_F16
+542
+V_MAX3_U32
+141
+V_CMPX_NEQ_F16
+544
+V_MED3_I32
+142
+V_CMPX_NLT_F16
+545
+V_MED3_U32
+145
+V_CMPX_LT_F32
+546
+V_SAD_U8
+146
+V_CMPX_EQ_F32
+547
+V_SAD_HI_U8
+147
+V_CMPX_LE_F32
+548
+V_SAD_U16
+148
+V_CMPX_GT_F32
+549
+V_SAD_U32
+149
+V_CMPX_LG_F32
+550
+V_CVT_PK_U8_F32
+150
+V_CMPX_GE_F32
+551
+V_DIV_FIXUP_F32
+151
+V_CMPX_O_F32
+552
+V_DIV_FIXUP_F64
+152
+V_CMPX_U_F32
+553
+V_MIN3_NUM_F32
+153
+V_CMPX_NGE_F32
+554
+V_MAX3_NUM_F32
+154
+V_CMPX_NLG_F32
+555
+V_MIN3_NUM_F16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+182 of 697
+
+=== PDF PAGE 193 ===
+Opcode #
+Name
+Opcode #
+Name
+155
+V_CMPX_NGT_F32
+556
+V_MAX3_NUM_F16
+156
+V_CMPX_NLE_F32
+557
+V_MINIMUM3_F32
+157
+V_CMPX_NEQ_F32
+558
+V_MAXIMUM3_F32
+158
+V_CMPX_NLT_F32
+559
+V_MINIMUM3_F16
+161
+V_CMPX_LT_F64
+560
+V_MAXIMUM3_F16
+162
+V_CMPX_EQ_F64
+561
+V_MED3_NUM_F32
+163
+V_CMPX_LE_F64
+562
+V_MED3_NUM_F16
+164
+V_CMPX_GT_F64
+567
+V_DIV_FMAS_F32
+165
+V_CMPX_LG_F64
+568
+V_DIV_FMAS_F64
+166
+V_CMPX_GE_F64
+569
+V_MSAD_U8
+167
+V_CMPX_O_F64
+570
+V_QSAD_PK_U16_U8
+168
+V_CMPX_U_F64
+571
+V_MQSAD_PK_U16_U8
+169
+V_CMPX_NGE_F64
+573
+V_MQSAD_U32_U8
+170
+V_CMPX_NLG_F64
+576
+V_XOR3_B32
+171
+V_CMPX_NGT_F64
+577
+V_MAD_U16
+172
+V_CMPX_NLE_F64
+580
+V_PERM_B32
+173
+V_CMPX_NEQ_F64
+581
+V_XAD_U32
+174
+V_CMPX_NLT_F64
+582
+V_LSHL_ADD_U32
+177
+V_CMPX_LT_I16
+583
+V_ADD_LSHL_U32
+178
+V_CMPX_EQ_I16
+584
+V_FMA_F16
+179
+V_CMPX_LE_I16
+586
+V_MIN3_I16
+180
+V_CMPX_GT_I16
+587
+V_MIN3_U16
+181
+V_CMPX_NE_I16
+589
+V_MAX3_I16
+182
+V_CMPX_GE_I16
+590
+V_MAX3_U16
+185
+V_CMPX_LT_U16
+592
+V_MED3_I16
+186
+V_CMPX_EQ_U16
+593
+V_MED3_U16
+187
+V_CMPX_LE_U16
+595
+V_MAD_I16
+188
+V_CMPX_GT_U16
+596
+V_DIV_FIXUP_F16
+189
+V_CMPX_NE_U16
+597
+V_ADD3_U32
+190
+V_CMPX_GE_U16
+598
+V_LSHL_OR_B32
+193
+V_CMPX_LT_I32
+599
+V_AND_OR_B32
+194
+V_CMPX_EQ_I32
+600
+V_OR3_B32
+195
+V_CMPX_LE_I32
+601
+V_MAD_U32_U16
+196
+V_CMPX_GT_I32
+602
+V_MAD_I32_I16
+197
+V_CMPX_NE_I32
+603
+V_PERMLANE16_B32
+198
+V_CMPX_GE_I32
+604
+V_PERMLANEX16_B32
+201
+V_CMPX_LT_U32
+605
+V_CNDMASK_B16
+202
+V_CMPX_EQ_U32
+610
+V_MAXMIN_U32
+203
+V_CMPX_LE_U32
+611
+V_MINMAX_U32
+204
+V_CMPX_GT_U32
+612
+V_MAXMIN_I32
+205
+V_CMPX_NE_U32
+613
+V_MINMAX_I32
+206
+V_CMPX_GE_U32
+614
+V_DOT2_F16_F16
+209
+V_CMPX_LT_I64
+615
+V_DOT2_BF16_BF16
+210
+V_CMPX_EQ_I64
+616
+V_MINMAX_NUM_F32
+211
+V_CMPX_LE_I64
+617
+V_MAXMIN_NUM_F32
+212
+V_CMPX_GT_I64
+618
+V_MINMAX_NUM_F16
+213
+V_CMPX_NE_I64
+619
+V_MAXMIN_NUM_F16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+183 of 697
+
+=== PDF PAGE 194 ===
+Opcode #
+Name
+Opcode #
+Name
+214
+V_CMPX_GE_I64
+620
+V_MINIMUMMAXIMUM_F32
+217
+V_CMPX_LT_U64
+621
+V_MAXIMUMMINIMUM_F32
+218
+V_CMPX_EQ_U64
+622
+V_MINIMUMMAXIMUM_F16
+219
+V_CMPX_LE_U64
+623
+V_MAXIMUMMINIMUM_F16
+220
+V_CMPX_GT_U64
+640
+V_S_EXP_F32
+221
+V_CMPX_NE_U64
+641
+V_S_EXP_F16
+222
+V_CMPX_GE_U64
+642
+V_S_LOG_F32
+253
+V_CMPX_CLASS_F16
+643
+V_S_LOG_F16
+254
+V_CMPX_CLASS_F32
+644
+V_S_RCP_F32
+255
+V_CMPX_CLASS_F64
+645
+V_S_RCP_F16
+257
+V_CNDMASK_B32
+646
+V_S_RSQ_F32
+258
+V_ADD_F64
+647
+V_S_RSQ_F16
+259
+V_ADD_F32
+648
+V_S_SQRT_F32
+260
+V_SUB_F32
+649
+V_S_SQRT_F16
+261
+V_SUBREV_F32
+771
+V_ADD_NC_U16
+262
+V_MUL_F64
+772
+V_SUB_NC_U16
+263
+V_MUL_DX9_ZERO_F32
+773
+V_MUL_LO_U16
+264
+V_MUL_F32
+774
+V_CVT_PK_I16_F32
+265
+V_MUL_I32_I24
+775
+V_CVT_PK_U16_F32
+266
+V_MUL_HI_I32_I24
+777
+V_MAX_U16
+267
+V_MUL_U32_U24
+778
+V_MAX_I16
+268
+V_MUL_HI_U32_U24
+779
+V_MIN_U16
+269
+V_MIN_NUM_F64
+780
+V_MIN_I16
+270
+V_MAX_NUM_F64
+781
+V_ADD_NC_I16
+273
+V_MIN_I32
+782
+V_SUB_NC_I16
+274
+V_MAX_I32
+783
+V_PERMLANE16_VAR_B32
+275
+V_MIN_U32
+784
+V_PERMLANEX16_VAR_B32
+276
+V_MAX_U32
+785
+V_PACK_B32_F16
+277
+V_MIN_NUM_F32
+786
+V_CVT_PK_NORM_I16_F16
+278
+V_MAX_NUM_F32
+787
+V_CVT_PK_NORM_U16_F16
+280
+V_LSHLREV_B32
+796
+V_LDEXP_F32
+281
+V_LSHRREV_B32
+797
+V_BFM_B32
+282
+V_ASHRREV_I32
+798
+V_BCNT_U32_B32
+283
+V_AND_B32
+799
+V_MBCNT_LO_U32_B32
+284
+V_OR_B32
+800
+V_MBCNT_HI_U32_B32
+285
+V_XOR_B32
+801
+V_CVT_PK_NORM_I16_F32
+286
+V_XNOR_B32
+802
+V_CVT_PK_NORM_U16_F32
+287
+V_LSHLREV_B64
+803
+V_CVT_PK_U16_U32
+293
+V_ADD_NC_U32
+804
+V_CVT_PK_I16_I32
+294
+V_SUB_NC_U32
+805
+V_SUB_NC_I32
+295
+V_SUBREV_NC_U32
+806
+V_ADD_NC_I32
+299
+V_FMAC_F32
+811
+V_LDEXP_F64
+303
+V_CVT_PK_RTZ_F16_F32
+812
+V_MUL_LO_U32
+304
+V_MIN_NUM_F16
+813
+V_MUL_HI_U32
+305
+V_MAX_NUM_F16
+814
+V_MUL_HI_I32
+306
+V_ADD_F16
+815
+V_TRIG_PREOP_F64
+307
+V_SUB_F16
+824
+V_LSHLREV_B16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+184 of 697
+
+=== PDF PAGE 195 ===
+Opcode #
+Name
+Opcode #
+Name
+308
+V_SUBREV_F16
+825
+V_LSHRREV_B16
+309
+V_MUL_F16
+826
+V_ASHRREV_I16
+310
+V_FMAC_F16
+829
+V_LSHRREV_B64
+315
+V_LDEXP_F16
+830
+V_ASHRREV_I64
+384
+V_NOP
+833
+V_MINIMUM_F64
+385
+V_MOV_B32
+834
+V_MAXIMUM_F64
+386
+V_READFIRSTLANE_B32
+864
+V_READLANE_B32
+387
+V_CVT_I32_F64
+865
+V_WRITELANE_B32
+388
+V_CVT_F64_I32
+866
+V_AND_B16
+389
+V_CVT_F32_I32
+867
+V_OR_B16
+390
+V_CVT_F32_U32
+868
+V_XOR_B16
+391
+V_CVT_U32_F32
+869
+V_MINIMUM_F32
+392
+V_CVT_I32_F32
+870
+V_MAXIMUM_F32
+394
+V_CVT_F16_F32
+871
+V_MINIMUM_F16
+395
+V_CVT_F32_F16
+872
+V_MAXIMUM_F16
+396
+V_CVT_NEAREST_I32_F32
+873
+V_CVT_PK_FP8_F32
+397
+V_CVT_FLOOR_I32_F32
+874
+V_CVT_PK_BF8_F32
+398
+V_CVT_OFF_F32_I4
+875
+V_CVT_SR_FP8_F32
+399
+V_CVT_F32_F64
+876
+V_CVT_SR_BF8_F32
+15.3.5. VOP3SD
+Description
+Vector ALU format with three operands and a scalar result. This encoding is used only for
+a few opcodes. Can be followed by a 32-bit literal constant or DPP instruction DWORD
+when the instruction allows it.
+This encoding allows specifying a unique scalar destination, and is used only for the opcodes listed below. All
+other opcodes use VOP3.
+Table 95. VOP3SD Fields
+Field Name
+Bits
+Format or Description
+VDST
+[7:0]
+Destination VGPR
+SDST
+[14:8]
+Scalar destination
+CM
+[15]
+Clamp result
+OP
+[25:16]
+Opcode. see next table.
+ENCODING
+[31:26]
+'b110101
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+185 of 697
+
+=== PDF PAGE 196 ===
+Field Name
+Bits
+Format or Description
+SRC0
+[40:32]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+Reserved.
+Literal constant.
+VGPR 0 - 255
+SRC1
+[49:41]
+Second input operand. Same options as SRC0.
+SRC2
+[58:50]
+Third input operand. Same options as SRC0.
+OMOD
+[60:59]
+Output Modifier: 0=none, 1=*2, 2=*4, 3=*0.5
+NEG
+[63:61]
+Negate input. [61] = src0, [62] = src1, [63] = src2
+Table 96. VOP3SD Opcodes
+Opcode #
+Name
+Opcode #
+Name
+288
+V_ADD_CO_CI_U32
+766
+V_MAD_CO_U64_U32
+289
+V_SUB_CO_CI_U32
+767
+V_MAD_CO_I64_I32
+290
+V_SUBREV_CO_CI_U32
+768
+V_ADD_CO_U32
+764
+V_DIV_SCALE_F32
+769
+V_SUB_CO_U32
+765
+V_DIV_SCALE_F64
+770
+V_SUBREV_CO_U32
+15.3.6. VOP3P
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+186 of 697
+
+=== PDF PAGE 197 ===
+Description
+Vector ALU format taking one, two or three pairs of 16 bit inputs and producing two 16-bit
+outputs (packed into 1 DWORD). WMMA instructions have larger input and output VGPR
+sets. Can be followed by a 32-bit literal constant or DPP instruction DWORD when the
+instruction allows it.
+Table 97. VOP3P Fields
+Field Name
+Bits
+Format or Description
+VDST
+[7:0]
+Destination VGPR
+NEG_HI
+[10:8]
+Negate sources 0,1,2 of the high 16-bits.
+OPSEL
+[13:11]
+Select low or high for low sources 0=[11], 1=[12], 2=[13].
+OPSEL_HI2
+[14]
+Bit[2] of OPSEL_HI. Select low or high for high sources 2=[14], 1=[60], 0=[59].
+CM
+[15]
+1 = clamp result.
+OP
+[22:16]
+Opcode. see next table.
+ENCODING
+[31:24]
+'b11001100
+SRC0
+[40:32]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+Reserved.
+Literal constant.
+VGPR 0 - 255
+SRC1
+[49:41]
+Second input operand. Same options as SRC0.
+SRC2
+[58:50]
+Third input operand. Same options as SRC0.
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+187 of 697
+
+=== PDF PAGE 198 ===
+Field Name
+Bits
+Format or Description
+OPSEL_HI
+[60:59]
+Bits [1:0] of OPSEL_HI. See OPSEL_HI2.
+NEG
+[63:61]
+Negate input for low 16-bits of sources. [61] = src0, [62] = src1, [63] = src2
+Table 98. VOP3P Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+V_PK_MAD_I16
+33
+V_FMA_MIXLO_F16
+1
+V_PK_MUL_LO_U16
+34
+V_FMA_MIXHI_F16
+2
+V_PK_ADD_I16
+36
+V_DOT4_F32_FP8_BF8
+3
+V_PK_SUB_I16
+37
+V_DOT4_F32_BF8_FP8
+4
+V_PK_LSHLREV_B16
+38
+V_DOT4_F32_FP8_FP8
+5
+V_PK_LSHRREV_B16
+39
+V_DOT4_F32_BF8_BF8
+6
+V_PK_ASHRREV_I16
+64
+V_WMMA_F32_16X16X16_F16
+7
+V_PK_MAX_I16
+65
+V_WMMA_F32_16X16X16_BF16
+8
+V_PK_MIN_I16
+66
+V_WMMA_F16_16X16X16_F16
+9
+V_PK_MAD_U16
+67
+V_WMMA_BF16_16X16X16_BF16
+10
+V_PK_ADD_U16
+68
+V_WMMA_I32_16X16X16_IU8
+11
+V_PK_SUB_U16
+69
+V_WMMA_I32_16X16X16_IU4
+12
+V_PK_MAX_U16
+70
+V_WMMA_F32_16X16X16_FP8_FP8
+13
+V_PK_MIN_U16
+71
+V_WMMA_F32_16X16X16_FP8_BF8
+14
+V_PK_FMA_F16
+72
+V_WMMA_F32_16X16X16_BF8_FP8
+15
+V_PK_ADD_F16
+73
+V_WMMA_F32_16X16X16_BF8_BF8
+16
+V_PK_MUL_F16
+74
+V_WMMA_I32_16X16X32_IU4
+19
+V_DOT2_F32_F16
+80
+V_SWMMAC_F32_16X16X32_F16
+22
+V_DOT4_I32_IU8
+81
+V_SWMMAC_F32_16X16X32_BF16
+23
+V_DOT4_U32_U8
+82
+V_SWMMAC_F16_16X16X32_F16
+24
+V_DOT8_I32_IU4
+83
+V_SWMMAC_BF16_16X16X32_BF16
+25
+V_DOT8_U32_U4
+84
+V_SWMMAC_I32_16X16X32_IU8
+26
+V_DOT2_F32_BF16
+85
+V_SWMMAC_I32_16X16X32_IU4
+27
+V_PK_MIN_NUM_F16
+86
+V_SWMMAC_I32_16X16X64_IU4
+28
+V_PK_MAX_NUM_F16
+87
+V_SWMMAC_F32_16X16X32_FP8_FP8
+29
+V_PK_MINIMUM_F16
+88
+V_SWMMAC_F32_16X16X32_FP8_BF8
+30
+V_PK_MAXIMUM_F16
+89
+V_SWMMAC_F32_16X16X32_BF8_FP8
+32
+V_FMA_MIX_F32
+90
+V_SWMMAC_F32_16X16X32_BF8_BF8
+15.3.7. VOPD
+Description
+Vector ALU format describing two instructions to be executed in parallel. Can be followed
+by a 32-bit literal constant, but not a DPP control DWORD.
+This instruction format describe two opcodes: X and Y.
+Table 99. VOPD Fields
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+188 of 697
+
+=== PDF PAGE 199 ===
+Field Name
+Bits
+Format or Description
+SRCX0
+[8:0]
+0-105
+106
+107
+108-123
+124
+125
+126
+127
+128
+129-192
+193-208
+209-232
+233
+234
+235
+236
+237
+238
+239
+240
+241
+242
+243
+244
+245
+246
+247
+248
+250
+253
+254
+255
+256 - 511
+Source 0 for opcode X. First operand for the instruction.
+SGPR0 - SGPR105: Scalar general-purpose registers.
+VCC_LO: VCC[31:0].
+VCC_HI: VCC[63:32].
+TTMP0 - TTMP15: Trap handler temporary register.
+NULL
+M0. Misc register 0.
+EXEC_LO: EXEC[31:0].
+EXEC_HI: EXEC[63:32].
+0.
+Signed integer 1 to 64.
+Signed integer -1 to -16.
+Reserved.
+DPP8 (only valid as SRC0)
+DPP8FI (only valid as SRC0)
+SHARED_BASE (Memory Aperture definition).
+SHARED_LIMIT (Memory Aperture definition).
+PRIVATE_BASE (Memory Aperture definition).
+PRIVATE_LIMIT (Memory Aperture definition).
+Reserved.
+0.5.
+-0.5.
+1.0.
+-1.0.
+2.0.
+-2.0.
+4.0.
+-4.0.
+1/(2*PI).
+DPP16 (only valid as SRC0)
+SCC.
+Reserved.
+Literal constant.
+VGPR 0 - 255
+VSRCX1
+[16:9]
+Source VGPR 1 for opcode X.
+OPY
+[21:17]
+Opcode Y. see next table.
+OPX
+[25:22]
+Opcode X. see next table.
+ENCODING
+[31:26]
+'b110010
+SRCY0
+[40:32]
+Source 0 for opcode Y. See SRCX0 for enumerations
+VSRCY1
+[48:41]
+Source VGPR 1 for opcode Y.
+VDSTY
+[55:49]
+Instruction Y destination VGPR, excluding LSB. LSB is the opposite of VDSTX[0].
+VDSTX
+[63:56]
+Instruction X destination VGPR
+Table 100. VOPD X-Opcodes
+0 V_DUAL_FMAC_F32
+7
+V_DUAL_MUL_DX9_ZERO_F32
+1 V_DUAL_FMAAK_F32
+8
+V_DUAL_MOV_B32
+2 V_DUAL_FMAMK_F32
+9
+V_DUAL_CNDMASK_B32
+3 V_DUAL_MUL_F32
+10 V_DUAL_MAX_NUM_F32
+4 V_DUAL_ADD_F32
+11 V_DUAL_MIN_NUM_F32
+5 V_DUAL_SUB_F32
+12 V_DUAL_DOT2ACC_F32_F16
+6 V_DUAL_SUBREV_F32
+13 V_DUAL_DOT2ACC_F32_BF16
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+189 of 697
+
+=== PDF PAGE 200 ===
+Table 101. VOPD Y-Opcodes
+0 V_DUAL_FMAC_F32
+9
+V_DUAL_CNDMASK_B32
+1 V_DUAL_FMAAK_F32
+10 V_DUAL_MAX_NUM_F32
+2 V_DUAL_FMAMK_F32
+11 V_DUAL_MIN_NUM_F32
+3 V_DUAL_MUL_F32
+12 V_DUAL_DOT2ACC_F32_F16
+4 V_DUAL_ADD_F32
+13 V_DUAL_DOT2ACC_F32_BF16
+5 V_DUAL_SUB_F32
+16 V_DUAL_ADD_NC_U32
+6 V_DUAL_SUBREV_F32
+17 V_DUAL_LSHLREV_B32
+7 V_DUAL_MUL_DX9_ZERO_F32
+18 V_DUAL_AND_B32
+8 V_DUAL_MOV_B32
+15.3.8. DPP16
+Description
+Data Parallel Primitives over 16 lanes. This is an additional DWORD that can follow VOP1,
+VOP2, VOPC, VOP3 or VOP3P instructions (in place of a literal constant) to control
+selection of data from other lanes.
+Table 102. DPP16 Fields
+Field Name
+Bits
+Format or Description
+SRC0
+[39:32]
+Real SRC0 operand (VGPR).
+DPP_CTRL
+[48:40]
+See next table: "DPP_CTRL Enumeration"
+FI
+[50]
+Fetch invalid data: 0 = read zero for any inactive lanes; 1 = read VGPRs even for
+invalid lanes.
+BC
+[51]
+Bounds Control: 0 = do not write when source is out of range, 1 = write.
+SRC0_NEG
+[52]
+1 = negate source 0.
+SRC0_ABS
+[53]
+1 = Absolute value of source 0.
+SRC1_NEG
+[54]
+1 = negate source 1.
+SRC1_ABS
+[55]
+1 = Absolute value of source 1.
+BANK_MASK
+[59:56]
+Bank Mask Applies to the VGPR destination write only, does not impact the thread
+mask when fetching source VGPR data.
+27==0: lanes[12:15, 28:31, 44:47, 60:63] are disabled
+26==0: lanes[8:11, 24:27, 40:43, 56:59] are disabled
+25==0: lanes[4:7, 20:23, 36:39, 52:55] are disabled
+24==0: lanes[0:3, 16:19, 32:35, 48:51] are disabled
+Notice: the term "bank" here is not the same as was used for the VGPR bank.
+ROW_MASK
+[63:60]
+Row Mask Applies to the VGPR destination write only, does not impact the thread
+mask when fetching source VGPR data.
+31==0: lanes[63:48] are disabled (wave 64 only)
+30==0: lanes[47:32] are disabled (wave 64 only)
+29==0: lanes[31:16] are disabled
+28==0: lanes[15:0] are disabled
+Table 103. DPP_CTRL Enumeration
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+190 of 697
+
+=== PDF PAGE 201 ===
+DPP_Cntl
+Enumeration
+Hex
+Value
+Function
+Description
+DPP_QUAD_PE
+RM*
+000-
+0FF
+pix[n].srca = pix[(n&0x3c)+ dpp_cntl[n%4*2+1 :
+n%4*2]].srca
+Permute of four threads.
+DPP_UNUSED
+100
+Undefined
+Reserved.
+DPP_ROW_SL* 101-
+10F
+if ((n&0xf) < (16-cntl[3:0])) pix[n].srca = pix[n+
+cntl[3:0]].srca else use bound_cntl
+Row shift left by 1-15 threads.
+DPP_ROW_SR* 111-
+11F
+if ((n&0xf) >= cntl[3:0]) pix[n].srca = pix[n -
+cntl[3:0]].srca else use bound_cntl
+Row shift right by 1-15 threads.
+DPP_ROW_RR* 121-
+12F
+if ((n&0xf) >= cnt[3:0]) pix[n].srca = pix[n -
+cntl[3:0]].srca else pix[n].srca = pix[n + 16 -
+cntl[3:0]].srca
+Row rotate right by 1-15 threads.
+DPP_ROW_MIR
+ROR*
+140
+pix[n].srca = pix[15-(n&f)].srca
+Mirror threads within row.
+DPP_ROW_HA
+LF_MIRROR*
+141
+pix[n].srca = pix[7-(n&7)].srca
+Mirror threads within row (8 threads).
+DPP_ROW_SHA
+RE*
+150-
+15F
+lanesel = DPP_CTRL & 0xf;
+lane[n].src0 = lane[(n & 0x30) + lanesel].src0.
+Select one lane within each row and share
+the result with all lanes in the row.
+DPP_ROW_XM
+ASK*
+160-
+16F
+lane[n].src0 = lane[(n & 0x30) + ((n & 0xf) ^
+mask)].src0.
+Fetch lane ID is the current lane ID XOR’d
+with a mask specified by DPP_CTRL[3:0].
+15.3.9. DPP8
+Description
+Data Parallel Primitives over 8 lanes. This is a second DWORD that can follow VOP1,
+VOP2, VOPC, VOP3 or VOP3P instructions (in place of a literal constant) to control
+selection of data from other lanes.
+Table 104. DPP8 Fields
+Field Name
+Bits
+Format or Description
+SRC0
+[39:32]
+Real SRC0 operand (VGPR).
+LANE_SEL0
+[42:40]
+Which lane to read for 1st output lane per 8-lane group
+LANE_SEL1
+[45:43]
+Which lane to read for 2nd output lane per 8-lane group
+LANE_SEL2
+[48:46]
+Which lane to read for 3rd output lane per 8-lane group
+LANE_SEL3
+[51:49]
+Which lane to read for 4th output lane per 8-lane group
+LANE_SEL4
+[54:52]
+Which lane to read for 5th output lane per 8-lane group
+LANE_SEL5
+[57:55]
+Which lane to read for 6th output lane per 8-lane group
+LANE_SEL6
+[60:58]
+Which lane to read for 7th output lane per 8-lane group
+LANE_SEL7
+[63:61]
+Which lane to read for 8th output lane per 8-lane group
+"RDNA4" Instruction Set Architecture
+15.3. Vector ALU Formats
+191 of 697
+
+=== PDF PAGE 202 ===
+15.4. Vector Parameter Interpolation Format
+15.4.1. VINTERP
+Description
+Vector Parameter Interpolation.
+These opcodes perform parameter interpolation using vertex data in pixel shaders.
+Table 105. VINTERP Fields
+Field Name
+Bits
+Format or Description
+VDST
+[7:0]
+Destination VGPR
+WAITEXP
+[10:8]
+Wait for EXPcnt to be less-than or equal-to this value before issuing instruction.
+OPSEL
+[14:11]
+Select low or high for low sources 0=[11], 1=[12], 2=[13], dst=[14].
+CM
+[15]
+1 = clamp result.
+OP
+[20:16]
+Opcode. see next table.
+ENCODING
+[31:26]
+'b11001101
+SRC0
+[40:32]
+256 - 511
+Source 0. First operand for the instruction.
+VGPR 0 - 255
+SRC1
+[49:41]
+Second input operand. Same options as SRC0.
+SRC2
+[58:50]
+Third input operand. Same options as SRC0.
+NEG
+[63:61]
+Negate input for low 16-bits of sources. [61] = src0, [62] = src1, [63] = src2
+Table 106. VINTERP Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+V_INTERP_P10_F32
+3
+V_INTERP_P2_F16_F32
+1
+V_INTERP_P2_F32
+4
+V_INTERP_P10_RTZ_F16_F32
+2
+V_INTERP_P10_F16_F32
+5
+V_INTERP_P2_RTZ_F16_F32
+15.5. Parameter and Direct Load from LDS
+15.5.1. VDSDIR
+Description
+LDS Direct and Parameter Load.
+These opcodes read either pixel parameter data or individual DWORDs from LDS into
+VGPRs.
+Table 107. VDSDIR Fields
+Field Name
+Bits
+Format or Description
+VDST
+[7:0]
+Destination VGPR
+ATTR_CHAN
+[9:8]
+Attribute channel: 0=X, 1=Y, 2=Z, 3=W
+"RDNA4" Instruction Set Architecture
+15.4. Vector Parameter Interpolation Format
+192 of 697
+
+=== PDF PAGE 203 ===
+Field Name
+Bits
+Format or Description
+ATTR
+[15:10]
+Attribute number: 0 - 32.
+WAIT_VA
+[19:16]
+Wait for previous VALU instructions to complete to resolve data dependency. Value is
+the max number of VALU ops still outstanding when issuing this instruction.
+OP
+[21:20]
+Opcode:
+0: DS_PARAM_LOAD
+1: DS_DIRECT_LOAD
+2, 3: Reserved.
+WAIT_VMVSRC
+[23]
+When set to 0, wait for all previously issued VMEM ops (including LDS) to have finished
+reading source VGPRs before issuing this instruction; when set to one issue as usual (no
+extra waiting).
+ENCODING
+[31:24]
+'b11001110
+Table 108. VDSDIR Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+DS_PARAM_LOAD
+1
+DS_DIRECT_LOAD
+"RDNA4" Instruction Set Architecture
+15.5. Parameter and Direct Load from LDS
+193 of 697
+
+=== PDF PAGE 204 ===
+15.6. Data-Share Format
+15.6.1. VDS
+Description
+Local Data Sharing instructions
+Table 109. DS Fields
+Field Name
+Bits
+Format or Description
+OFFSET0
+[7:0]
+First address offset
+OFFSET1
+[15:8]
+Second address offset. For some opcodes this is concatenated with OFFSET0.
+OP
+[25:18]
+See Opcode table below.
+ENCODING
+[31:26]
+'b110110
+ADDR
+[39:32]
+VGPR that supplies the address.
+DATA0
+[47:40]
+First data VGPR.
+DATA1
+[55:48]
+Second data VGPR.
+VDST
+[63:56]
+Destination VGPR when results returned to VGPRs.
+Table 110. DS Opcodes
+Opcode # Name
+Opcode # Name
+0
+DS_ADD_U32
+78
+DS_STORE_2ADDR_B64
+1
+DS_SUB_U32
+79
+DS_STORE_2ADDR_STRIDE64_B64
+2
+DS_RSUB_U32
+80
+DS_CMPSTORE_B64
+3
+DS_INC_U32
+82
+DS_MIN_NUM_F64
+4
+DS_DEC_U32
+83
+DS_MAX_NUM_F64
+5
+DS_MIN_I32
+96
+DS_ADD_RTN_U64
+6
+DS_MAX_I32
+97
+DS_SUB_RTN_U64
+7
+DS_MIN_U32
+98
+DS_RSUB_RTN_U64
+8
+DS_MAX_U32
+99
+DS_INC_RTN_U64
+9
+DS_AND_B32
+100
+DS_DEC_RTN_U64
+10
+DS_OR_B32
+101
+DS_MIN_RTN_I64
+11
+DS_XOR_B32
+102
+DS_MAX_RTN_I64
+12
+DS_MSKOR_B32
+103
+DS_MIN_RTN_U64
+13
+DS_STORE_B32
+104
+DS_MAX_RTN_U64
+14
+DS_STORE_2ADDR_B32
+105
+DS_AND_RTN_B64
+15
+DS_STORE_2ADDR_STRIDE64_B32
+106
+DS_OR_RTN_B64
+16
+DS_CMPSTORE_B32
+107
+DS_XOR_RTN_B64
+18
+DS_MIN_NUM_F32
+108
+DS_MSKOR_RTN_B64
+19
+DS_MAX_NUM_F32
+109
+DS_STOREXCHG_RTN_B64
+20
+DS_NOP
+110
+DS_STOREXCHG_2ADDR_RTN_B64
+21
+DS_ADD_F32
+111
+DS_STOREXCHG_2ADDR_STRIDE64_RTN_B64
+30
+DS_STORE_B8
+112
+DS_CMPSTORE_RTN_B64
+31
+DS_STORE_B16
+114
+DS_MIN_NUM_RTN_F64
+32
+DS_ADD_RTN_U32
+115
+DS_MAX_NUM_RTN_F64
+"RDNA4" Instruction Set Architecture
+15.6. Data-Share Format
+194 of 697
+
+=== PDF PAGE 205 ===
+Opcode # Name
+Opcode # Name
+33
+DS_SUB_RTN_U32
+118
+DS_LOAD_B64
+34
+DS_RSUB_RTN_U32
+119
+DS_LOAD_2ADDR_B64
+35
+DS_INC_RTN_U32
+120
+DS_LOAD_2ADDR_STRIDE64_B64
+36
+DS_DEC_RTN_U32
+121
+DS_ADD_RTN_F32
+37
+DS_MIN_RTN_I32
+126
+DS_CONDXCHG32_RTN_B64
+38
+DS_MAX_RTN_I32
+152
+DS_COND_SUB_U32
+39
+DS_MIN_RTN_U32
+153
+DS_SUB_CLAMP_U32
+40
+DS_MAX_RTN_U32
+154
+DS_PK_ADD_F16
+41
+DS_AND_RTN_B32
+155
+DS_PK_ADD_BF16
+42
+DS_OR_RTN_B32
+160
+DS_STORE_B8_D16_HI
+43
+DS_XOR_RTN_B32
+161
+DS_STORE_B16_D16_HI
+44
+DS_MSKOR_RTN_B32
+162
+DS_LOAD_U8_D16
+45
+DS_STOREXCHG_RTN_B32
+163
+DS_LOAD_U8_D16_HI
+46
+DS_STOREXCHG_2ADDR_RTN_B32
+164
+DS_LOAD_I8_D16
+47
+DS_STOREXCHG_2ADDR_STRIDE64_RTN_B32
+165
+DS_LOAD_I8_D16_HI
+48
+DS_CMPSTORE_RTN_B32
+166
+DS_LOAD_U16_D16
+50
+DS_MIN_NUM_RTN_F32
+167
+DS_LOAD_U16_D16_HI
+51
+DS_MAX_NUM_RTN_F32
+168
+DS_COND_SUB_RTN_U32
+53
+DS_SWIZZLE_B32
+169
+DS_SUB_CLAMP_RTN_U32
+54
+DS_LOAD_B32
+170
+DS_PK_ADD_RTN_F16
+55
+DS_LOAD_2ADDR_B32
+171
+DS_PK_ADD_RTN_BF16
+56
+DS_LOAD_2ADDR_STRIDE64_B32
+176
+DS_STORE_ADDTID_B32
+57
+DS_LOAD_I8
+177
+DS_LOAD_ADDTID_B32
+58
+DS_LOAD_U8
+178
+DS_PERMUTE_B32
+59
+DS_LOAD_I16
+179
+DS_BPERMUTE_B32
+60
+DS_LOAD_U16
+192
+Reserved
+61
+DS_CONSUME
+194
+Reserved
+62
+DS_APPEND
+195
+Reserved
+64
+DS_ADD_U64
+196
+Reserved
+65
+DS_SUB_U64
+198
+Reserved
+66
+DS_RSUB_U64
+199
+Reserved
+67
+DS_INC_U64
+200
+Reserved
+68
+DS_DEC_U64
+202
+Reserved
+69
+DS_MIN_I64
+203
+Reserved
+70
+DS_MAX_I64
+205
+DS_BPERMUTE_FI_B32
+71
+DS_MIN_U64
+222
+DS_STORE_B96
+72
+DS_MAX_U64
+223
+DS_STORE_B128
+73
+DS_AND_B64
+224
+DS_BVH_STACK_PUSH4_POP1_RTN_B32
+74
+DS_OR_B64
+225
+DS_BVH_STACK_PUSH8_POP1_RTN_B32
+75
+DS_XOR_B64
+226
+DS_BVH_STACK_PUSH8_POP2_RTN_B64
+76
+DS_MSKOR_B64
+254
+DS_LOAD_B96
+77
+DS_STORE_B64
+255
+DS_LOAD_B128
+"RDNA4" Instruction Set Architecture
+15.6. Data-Share Format
+195 of 697
+
+=== PDF PAGE 206 ===
+15.7. Vector Memory Buffer Formats
+There are two memory buffer instruction formats:
+VBUFFER
+typed buffer access (data type is defined by the instruction) or untyped (defined by the resource-constant)
+15.7.1. VBUFFER
+Description
+Memory Typed-Buffer Instructions
+Table 111. VBUFFER Fields
+Field Name
+Bits
+Format or Description
+SOFFSET
+[6:0]
+Address offset from SGPR or NULL, unsigned byte.
+OP
+[21:14]
+Opcode. See table below. (combined bits 53 with 18-16 to form opcode)
+TFE
+[22]
+Partially resident texture, texture fault enable.
+ENCODING
+[31:26]
+'b110001
+VDATA
+[39:32]
+Address of VGPR to supply first component of write data or receive first component of
+read-data.
+RSRC
+[49:41]
+SGPR to supply V# (resource constant) in 4 or 8 consecutive SGPRs. Must be multiple of 4 in
+the range 0-120.
+SCOPE
+[51:50]
+Memory Scope
+TH
+[54:52]
+Memory Temporal Hint
+FORMAT
+[61:55]
+Data Format of data in memory buffer. See Buffer Image format Table
+OFFEN
+[62]
+1 = enable offset VGPR, 0 = use zero for address offset
+IDXEN
+[63]
+1 = enable index VGPR, 0 = use zero for address index
+VADDR
+[71:64]
+Address of VGPR to supply first component of address (offset or index). When both index
+and offset are used, index is in the first VGPR and offset in the second.
+IOFFSET
+[95:72]
+Address offset, signed byte; must be non-negative.
+Table 112. VBUFFER Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+BUFFER_LOAD_FORMAT_X
+56
+BUFFER_ATOMIC_MIN_I32
+1
+BUFFER_LOAD_FORMAT_XY
+57
+BUFFER_ATOMIC_MIN_U32
+2
+BUFFER_LOAD_FORMAT_XYZ
+58
+BUFFER_ATOMIC_MAX_I32
+3
+BUFFER_LOAD_FORMAT_XYZW
+59
+BUFFER_ATOMIC_MAX_U32
+4
+BUFFER_STORE_FORMAT_X
+60
+BUFFER_ATOMIC_AND_B32
+5
+BUFFER_STORE_FORMAT_XY
+61
+BUFFER_ATOMIC_OR_B32
+6
+BUFFER_STORE_FORMAT_XYZ
+62
+BUFFER_ATOMIC_XOR_B32
+7
+BUFFER_STORE_FORMAT_XYZW
+63
+BUFFER_ATOMIC_INC_U32
+8
+BUFFER_LOAD_D16_FORMAT_X
+64
+BUFFER_ATOMIC_DEC_U32
+9
+BUFFER_LOAD_D16_FORMAT_XY
+65
+BUFFER_ATOMIC_SWAP_B64
+10
+BUFFER_LOAD_D16_FORMAT_XYZ
+66
+BUFFER_ATOMIC_CMPSWAP_B64
+"RDNA4" Instruction Set Architecture
+15.7. Vector Memory Buffer Formats
+196 of 697
+
+=== PDF PAGE 207 ===
+Opcode #
+Name
+Opcode #
+Name
+11
+BUFFER_LOAD_D16_FORMAT_XYZW
+67
+BUFFER_ATOMIC_ADD_U64
+12
+BUFFER_STORE_D16_FORMAT_X
+68
+BUFFER_ATOMIC_SUB_U64
+13
+BUFFER_STORE_D16_FORMAT_XY
+69
+BUFFER_ATOMIC_MIN_I64
+14
+BUFFER_STORE_D16_FORMAT_XYZ
+70
+BUFFER_ATOMIC_MIN_U64
+15
+BUFFER_STORE_D16_FORMAT_XYZW
+71
+BUFFER_ATOMIC_MAX_I64
+16
+BUFFER_LOAD_U8
+72
+BUFFER_ATOMIC_MAX_U64
+17
+BUFFER_LOAD_I8
+73
+BUFFER_ATOMIC_AND_B64
+18
+BUFFER_LOAD_U16
+74
+BUFFER_ATOMIC_OR_B64
+19
+BUFFER_LOAD_I16
+75
+BUFFER_ATOMIC_XOR_B64
+20
+BUFFER_LOAD_B32
+76
+BUFFER_ATOMIC_INC_U64
+21
+BUFFER_LOAD_B64
+77
+BUFFER_ATOMIC_DEC_U64
+22
+BUFFER_LOAD_B96
+80
+BUFFER_ATOMIC_COND_SUB_U32
+23
+BUFFER_LOAD_B128
+81
+BUFFER_ATOMIC_MIN_NUM_F32
+24
+BUFFER_STORE_B8
+82
+BUFFER_ATOMIC_MAX_NUM_F32
+25
+BUFFER_STORE_B16
+86
+BUFFER_ATOMIC_ADD_F32
+26
+BUFFER_STORE_B32
+89
+BUFFER_ATOMIC_PK_ADD_F16
+27
+BUFFER_STORE_B64
+90
+BUFFER_ATOMIC_PK_ADD_BF16
+28
+BUFFER_STORE_B96
+128
+TBUFFER_LOAD_FORMAT_X
+29
+BUFFER_STORE_B128
+129
+TBUFFER_LOAD_FORMAT_XY
+30
+BUFFER_LOAD_D16_U8
+130
+TBUFFER_LOAD_FORMAT_XYZ
+31
+BUFFER_LOAD_D16_I8
+131
+TBUFFER_LOAD_FORMAT_XYZW
+32
+BUFFER_LOAD_D16_B16
+132
+TBUFFER_STORE_FORMAT_X
+33
+BUFFER_LOAD_D16_HI_U8
+133
+TBUFFER_STORE_FORMAT_XY
+34
+BUFFER_LOAD_D16_HI_I8
+134
+TBUFFER_STORE_FORMAT_XYZ
+35
+BUFFER_LOAD_D16_HI_B16
+135
+TBUFFER_STORE_FORMAT_XYZW
+36
+BUFFER_STORE_D16_HI_B8
+136
+TBUFFER_LOAD_D16_FORMAT_X
+37
+BUFFER_STORE_D16_HI_B16
+137
+TBUFFER_LOAD_D16_FORMAT_XY
+38
+BUFFER_LOAD_D16_HI_FORMAT_X
+138
+TBUFFER_LOAD_D16_FORMAT_XYZ
+39
+BUFFER_STORE_D16_HI_FORMAT_X
+139
+TBUFFER_LOAD_D16_FORMAT_XYZW
+51
+BUFFER_ATOMIC_SWAP_B32
+140
+TBUFFER_STORE_D16_FORMAT_X
+52
+BUFFER_ATOMIC_CMPSWAP_B32
+141
+TBUFFER_STORE_D16_FORMAT_XY
+53
+BUFFER_ATOMIC_ADD_U32
+142
+TBUFFER_STORE_D16_FORMAT_XYZ
+54
+BUFFER_ATOMIC_SUB_U32
+143
+TBUFFER_STORE_D16_FORMAT_XYZW
+55
+BUFFER_ATOMIC_SUB_CLAMP_U32
+"RDNA4" Instruction Set Architecture
+15.7. Vector Memory Buffer Formats
+197 of 697
+
+=== PDF PAGE 208 ===
+15.8. Vector Memory Image Format
+Description
+Memory Image Instructions - image load, store and atomics (instructions that do not use a
+sampler)
+Table 113. VIMAGE Fields
+Field Name
+Bits
+Format or Description
+DIM
+[2:0]
+Dimensionality of the resource constant. Set to bits [3:1] of the resource type field.
+R128
+[4]
+Resource constant size: 1 = 128bit, 0 = 256bit
+D16
+[5]
+Data components are 16-bits (instead of the usual 32 bits).
+A16
+[6]
+Address components are 16-bits (instead of the usual 32 bits).
+OP
+[21:14]
+Opcode. See table below. (combined bits 53 with 18-16 to form opcode)
+DMASK
+[25:22]
+Data VGPR enable mask: 1 .. 4 consecutive VGPRs
+Reads: defines which components are returned: 
+0=red,1=green,2=blue,3=alpha
+Writes: defines which components are written with data from VGPRs (missing components
+replicate first component).
+Enabled components come from consecutive VGPRs.
+E.G. dmask=1001 : Red is in VGPRn and alpha in VGPRn+1.
+For D16 writes, DMASK is only used as a word count: each bit represents 16 bits of data to
+be written starting at the LSB’s of VDATA, then MSBs, then VDATA+1 etc. Bit position is
+ignored.
+ENCODING
+[31:26]
+'b110100
+VDATA
+[39:32]
+Address of VGPR to supply first component of write data or receive first component of
+read-data.
+RSRC
+[49:41]
+SGPR to supply T# (resource constant) in 4 or 8 consecutive SGPRs. Must be multiple of 4 in
+the range 0-120.
+SCOPE
+[51:50]
+Memory Scope
+TH
+[54:52]
+Memory Temporal Hint
+TFE
+[55]
+Partially resident texture, texture fault enable.
+VADDR4
+[56:63]
+Address of VGPR to supply fifth component of address.
+VADDR0
+[71:64]
+Address of VGPR to supply first component of address.
+VADDR1
+[79:72]
+Address of VGPR to supply second component of address.
+VADDR2
+[87:80]
+Address of VGPR to supply third component of address.
+VADDR3
+[95:88]
+Address of VGPR to supply fourth component of address.
+IMAGE_BVH ops use VADDR0-VADDR4 to specify component-groups instead of single components.
+Table 114. VIMAGE Opcodes
+Opcode #
+Name
+Opcode #
+Name
+0
+IMAGE_LOAD
+17
+IMAGE_ATOMIC_MAX_UINT
+1
+IMAGE_LOAD_MIP
+18
+IMAGE_ATOMIC_AND
+2
+IMAGE_LOAD_PCK
+19
+IMAGE_ATOMIC_OR
+3
+IMAGE_LOAD_PCK_SGN
+20
+IMAGE_ATOMIC_XOR
+4
+IMAGE_LOAD_MIP_PCK
+21
+IMAGE_ATOMIC_INC_UINT
+"RDNA4" Instruction Set Architecture
+15.8. Vector Memory Image Format
+198 of 697
+
+=== PDF PAGE 209 ===
+Opcode #
+Name
+Opcode #
+Name
+5
+IMAGE_LOAD_MIP_PCK_SGN
+22
+IMAGE_ATOMIC_DEC_UINT
+6
+IMAGE_STORE
+23
+IMAGE_GET_RESINFO
+7
+IMAGE_STORE_MIP
+25
+IMAGE_BVH_INTERSECT_RAY
+8
+IMAGE_STORE_PCK
+26
+IMAGE_BVH64_INTERSECT_RAY
+9
+IMAGE_STORE_MIP_PCK
+128
+IMAGE_BVH_DUAL_INTERSECT_RAY
+10
+IMAGE_ATOMIC_SWAP
+129
+IMAGE_BVH8_INTERSECT_RAY
+11
+IMAGE_ATOMIC_CMPSWAP
+131
+IMAGE_ATOMIC_ADD_FLT
+12
+IMAGE_ATOMIC_ADD_UINT
+132
+IMAGE_ATOMIC_MIN_FLT
+13
+IMAGE_ATOMIC_SUB_UINT
+133
+IMAGE_ATOMIC_MAX_FLT
+14
+IMAGE_ATOMIC_MIN_INT
+134
+IMAGE_ATOMIC_PK_ADD_F16
+15
+IMAGE_ATOMIC_MIN_UINT
+135
+IMAGE_ATOMIC_PK_ADD_BF16
+16
+IMAGE_ATOMIC_MAX_INT
+"RDNA4" Instruction Set Architecture
+15.8. Vector Memory Image Format
+199 of 697
+
+=== PDF PAGE 210 ===
+15.9. Vector Memory Sample Format
+Description
+Memory Image-Sample Instructions - sample and gather4 (instructions that do use a
+sampler)
+Table 115. VSAMPLE Fields
+Field Name
+Bits
+Format or Description
+DIM
+[2:0]
+Dimensionality of the resource constant. Set to bits [3:1] of the resource type field.
+TFE
+[3]
+Partially resident texture, texture fault enable.
+R128
+[4]
+Resource constant size: 1 = 128bit, 0 = 256bit
+D16
+[5]
+Data components are 16-bits (instead of the usual 32 bits).
+A16
+[6]
+Address components are 16-bits (instead of the usual 32 bits). 
+UNRM
+[13]
+Force address to be un-normalized. User must set to 1 for Image stores & atomics. When
+set, all address components are 16 bits (packed into 2 per DWORD), except:
+Texel offsets (3 6bit UINT packed into 1 DWORD)
+PCF reference (for "_C" instructions)
+Address components are 16b uint for image ops without sampler; 16b float with sampler.
+OP
+[21:14]
+Opcode. See table below. (combined bits 53 with 18-16 to form opcode)
+DMASK
+[25:22]
+Data VGPR enable mask: 1 .. 4 consecutive VGPRs
+Defines which components are returned: 
+0=red,1=green,2=blue,3=alpha
+Enabled components come from consecutive VGPRs.
+E.G. dmask=1001 : Red is in VGPRn and alpha in VGPRn+1.
+For D16 writes, DMASK is only used as a word count: each bit represents 16 bits of data to
+be written starting at the LSB’s of VDATA, then MSBs, then VDATA+1 etc. Bit position is
+ignored.
+ENCODING
+[31:26]
+'b111001
+VDATA
+[39:32]
+Address of VGPR to supply first component of write data or receive first component of
+read-data.
+LWE
+[40]
+LOD Warning Enable. When set to 1, a texture fetch may return "LOD_CLAMPED = 1".
+RSRC
+[49:41]
+SGPR to supply V# (resource constant) in 4 or 8 consecutive SGPRs. Must be multiple of 4 in
+the range 0-120.
+SCOPE
+[51:50]
+Memory Scope
+TH
+[54:52]
+Memory Temporal Hint
+SAMP
+[63:55]
+SGPR to supply S# (sampler constant) in 4 or 8 consecutive SGPRs. Must be multiple of 4 in
+the range 0-120.
+VADDR0
+[71:64]
+Address of VGPR to supply first component of address.
+VADDR1
+[79:72]
+Address of VGPR to supply second component of address.
+VADDR2
+[87:80]
+Address of VGPR to supply third component of address.
+VADDR3
+[95:88]
+Address of VGPR to supply fourth component of address.
+Table 116. VSAMPLE Opcodes
+Opcode #
+Name
+Opcode #
+Name
+24
+IMAGE_MSAA_LOAD
+55
+IMAGE_GATHER4_C_LZ_O
+27
+IMAGE_SAMPLE
+56
+IMAGE_GET_LOD
+28
+IMAGE_SAMPLE_D
+57
+IMAGE_SAMPLE_D_G16
+"RDNA4" Instruction Set Architecture
+15.9. Vector Memory Sample Format
+200 of 697
+
+=== PDF PAGE 211 ===
+Opcode #
+Name
+Opcode #
+Name
+29
+IMAGE_SAMPLE_L
+58
+IMAGE_SAMPLE_C_D_G16
+30
+IMAGE_SAMPLE_B
+59
+IMAGE_SAMPLE_D_O_G16
+31
+IMAGE_SAMPLE_LZ
+60
+IMAGE_SAMPLE_C_D_O_G16
+32
+IMAGE_SAMPLE_C
+64
+IMAGE_SAMPLE_CL
+33
+IMAGE_SAMPLE_C_D
+65
+IMAGE_SAMPLE_D_CL
+34
+IMAGE_SAMPLE_C_L
+66
+IMAGE_SAMPLE_B_CL
+35
+IMAGE_SAMPLE_C_B
+67
+IMAGE_SAMPLE_C_CL
+36
+IMAGE_SAMPLE_C_LZ
+68
+IMAGE_SAMPLE_C_D_CL
+37
+IMAGE_SAMPLE_O
+69
+IMAGE_SAMPLE_C_B_CL
+38
+IMAGE_SAMPLE_D_O
+70
+IMAGE_SAMPLE_CL_O
+39
+IMAGE_SAMPLE_L_O
+71
+IMAGE_SAMPLE_D_CL_O
+40
+IMAGE_SAMPLE_B_O
+72
+IMAGE_SAMPLE_B_CL_O
+41
+IMAGE_SAMPLE_LZ_O
+73
+IMAGE_SAMPLE_C_CL_O
+42
+IMAGE_SAMPLE_C_O
+74
+IMAGE_SAMPLE_C_D_CL_O
+43
+IMAGE_SAMPLE_C_D_O
+75
+IMAGE_SAMPLE_C_B_CL_O
+44
+IMAGE_SAMPLE_C_L_O
+84
+IMAGE_SAMPLE_C_D_CL_G16
+45
+IMAGE_SAMPLE_C_B_O
+85
+IMAGE_SAMPLE_D_CL_O_G16
+46
+IMAGE_SAMPLE_C_LZ_O
+86
+IMAGE_SAMPLE_C_D_CL_O_G16
+47
+IMAGE_GATHER4
+95
+IMAGE_SAMPLE_D_CL_G16
+48
+IMAGE_GATHER4_L
+96
+IMAGE_GATHER4_CL
+49
+IMAGE_GATHER4_B
+97
+IMAGE_GATHER4_B_CL
+50
+IMAGE_GATHER4_LZ
+98
+IMAGE_GATHER4_C_CL
+51
+IMAGE_GATHER4_C
+99
+IMAGE_GATHER4_C_L
+52
+IMAGE_GATHER4_C_LZ
+100
+IMAGE_GATHER4_C_B
+53
+IMAGE_GATHER4_O
+101
+IMAGE_GATHER4_C_B_CL
+54
+IMAGE_GATHER4_LZ_O
+144
+IMAGE_GATHER4H
+"RDNA4" Instruction Set Architecture
+15.9. Vector Memory Sample Format
+201 of 697
+
+=== PDF PAGE 212 ===
+15.10. Flat, Global and Scratch Formats
+Flat memory instructions come in three versions:
+FLAT
+memory address (per work-item) may be in global memory, scratch (private) memory or shared memory
+(LDS)
+GLOBAL
+same as FLAT, but assumes all memory addresses are global memory.
+SCRATCH
+same as FLAT, but assumes all memory addresses are scratch (private) memory.
+The microcode format is identical for each, and only the value of the SEG (segment) field differs.
+Description
+FLAT Memory Access
+Table 117. FLAT, GLOBAL and SCRATCH Fields
+Field Name
+Bits
+Format or Description
+SADDR
+[6:0]
+SGPR that provides an address or offset (signed). Set this field to NULL to disable use.
+Meaning of this field is different for Scratch and Global:
+FLAT: NULL=Normal addressing; non-NULL=GVS addressing.
+Scratch: use an SGPR for the address instead of a VGPR
+Global: use the SGPR to provide a base address and the VGPR provides a 32-bit byte offset.
+OP
+[20:13]
+Opcode. See tables below for FLAT, SCRATCH and GLOBAL opcodes.
+ENCODING
+[31:24]
+Flat='b11101100, Global='b11101110, Scratch='b11101101
+VDST
+[39:32]
+Destination VGPR for data returned from memory to VGPRs.
+SVE
+[49]
+Scratch VGPR Enable. 1 = scratch address includes a VGPR to provide an offset; 0 = no
+VGPR used.
+SCOPE
+[51:50]
+Memory Scope
+TH
+[54:52]
+Memory Temporal Hint
+VSRC
+[62:55]
+Source VGPR for data sent from VGPRs to memory.
+VADDR
+[71:64]
+VGPR that holds address or offset. For 64-bit addresses, ADDR has the LSBs and ADDR+1
+has the MSBs. For offset a single VGPR has a 32 bit unsigned offset.
+For FLAT_*: specifies an address.
+For GLOBAL_* and SCRATCH_* when SADDR is NULL or 0x7f: specifies an address.
+For GLOBAL_* and SCRATCH_* when SADDR is not NULL or 0x7f: specifies an offset.
+"RDNA4" Instruction Set Architecture
+15.10. Flat, Global and Scratch Formats
+202 of 697
+
+=== PDF PAGE 213 ===
+Field Name
+Bits
+Format or Description
+IOFFSET
+[95:72]
+Address offset, signed byte.
+15.10.1. VFLAT
+Table 118. VFLAT Opcodes
+Opcode #
+Name
+Opcode #
+Name
+16
+FLAT_LOAD_U8
+57
+FLAT_ATOMIC_MIN_U32
+17
+FLAT_LOAD_I8
+58
+FLAT_ATOMIC_MAX_I32
+18
+FLAT_LOAD_U16
+59
+FLAT_ATOMIC_MAX_U32
+19
+FLAT_LOAD_I16
+60
+FLAT_ATOMIC_AND_B32
+20
+FLAT_LOAD_B32
+61
+FLAT_ATOMIC_OR_B32
+21
+FLAT_LOAD_B64
+62
+FLAT_ATOMIC_XOR_B32
+22
+FLAT_LOAD_B96
+63
+FLAT_ATOMIC_INC_U32
+23
+FLAT_LOAD_B128
+64
+FLAT_ATOMIC_DEC_U32
+24
+FLAT_STORE_B8
+65
+FLAT_ATOMIC_SWAP_B64
+25
+FLAT_STORE_B16
+66
+FLAT_ATOMIC_CMPSWAP_B64
+26
+FLAT_STORE_B32
+67
+FLAT_ATOMIC_ADD_U64
+27
+FLAT_STORE_B64
+68
+FLAT_ATOMIC_SUB_U64
+28
+FLAT_STORE_B96
+69
+FLAT_ATOMIC_MIN_I64
+29
+FLAT_STORE_B128
+70
+FLAT_ATOMIC_MIN_U64
+30
+FLAT_LOAD_D16_U8
+71
+FLAT_ATOMIC_MAX_I64
+31
+FLAT_LOAD_D16_I8
+72
+FLAT_ATOMIC_MAX_U64
+32
+FLAT_LOAD_D16_B16
+73
+FLAT_ATOMIC_AND_B64
+33
+FLAT_LOAD_D16_HI_U8
+74
+FLAT_ATOMIC_OR_B64
+34
+FLAT_LOAD_D16_HI_I8
+75
+FLAT_ATOMIC_XOR_B64
+35
+FLAT_LOAD_D16_HI_B16
+76
+FLAT_ATOMIC_INC_U64
+36
+FLAT_STORE_D16_HI_B8
+77
+FLAT_ATOMIC_DEC_U64
+37
+FLAT_STORE_D16_HI_B16
+80
+FLAT_ATOMIC_COND_SUB_U32
+51
+FLAT_ATOMIC_SWAP_B32
+81
+FLAT_ATOMIC_MIN_NUM_F32
+52
+FLAT_ATOMIC_CMPSWAP_B32
+82
+FLAT_ATOMIC_MAX_NUM_F32
+53
+FLAT_ATOMIC_ADD_U32
+86
+FLAT_ATOMIC_ADD_F32
+54
+FLAT_ATOMIC_SUB_U32
+89
+FLAT_ATOMIC_PK_ADD_F16
+55
+FLAT_ATOMIC_SUB_CLAMP_U32
+90
+FLAT_ATOMIC_PK_ADD_BF16
+56
+FLAT_ATOMIC_MIN_I32
+15.10.2. VGLOBAL
+Table 119. VGLOBAL Opcodes
+Opcode #
+Name
+Opcode #
+Name
+16
+GLOBAL_LOAD_U8
+58
+GLOBAL_ATOMIC_MAX_I32
+17
+GLOBAL_LOAD_I8
+59
+GLOBAL_ATOMIC_MAX_U32
+18
+GLOBAL_LOAD_U16
+60
+GLOBAL_ATOMIC_AND_B32
+19
+GLOBAL_LOAD_I16
+61
+GLOBAL_ATOMIC_OR_B32
+20
+GLOBAL_LOAD_B32
+62
+GLOBAL_ATOMIC_XOR_B32
+21
+GLOBAL_LOAD_B64
+63
+GLOBAL_ATOMIC_INC_U32
+"RDNA4" Instruction Set Architecture
+15.10. Flat, Global and Scratch Formats
+203 of 697
+
+=== PDF PAGE 214 ===
+Opcode #
+Name
+Opcode #
+Name
+22
+GLOBAL_LOAD_B96
+64
+GLOBAL_ATOMIC_DEC_U32
+23
+GLOBAL_LOAD_B128
+65
+GLOBAL_ATOMIC_SWAP_B64
+24
+GLOBAL_STORE_B8
+66
+GLOBAL_ATOMIC_CMPSWAP_B64
+25
+GLOBAL_STORE_B16
+67
+GLOBAL_ATOMIC_ADD_U64
+26
+GLOBAL_STORE_B32
+68
+GLOBAL_ATOMIC_SUB_U64
+27
+GLOBAL_STORE_B64
+69
+GLOBAL_ATOMIC_MIN_I64
+28
+GLOBAL_STORE_B96
+70
+GLOBAL_ATOMIC_MIN_U64
+29
+GLOBAL_STORE_B128
+71
+GLOBAL_ATOMIC_MAX_I64
+30
+GLOBAL_LOAD_D16_U8
+72
+GLOBAL_ATOMIC_MAX_U64
+31
+GLOBAL_LOAD_D16_I8
+73
+GLOBAL_ATOMIC_AND_B64
+32
+GLOBAL_LOAD_D16_B16
+74
+GLOBAL_ATOMIC_OR_B64
+33
+GLOBAL_LOAD_D16_HI_U8
+75
+GLOBAL_ATOMIC_XOR_B64
+34
+GLOBAL_LOAD_D16_HI_I8
+76
+GLOBAL_ATOMIC_INC_U64
+35
+GLOBAL_LOAD_D16_HI_B16
+77
+GLOBAL_ATOMIC_DEC_U64
+36
+GLOBAL_STORE_D16_HI_B8
+79
+GLOBAL_WBINV
+37
+GLOBAL_STORE_D16_HI_B16
+80
+GLOBAL_ATOMIC_COND_SUB_U32
+40
+GLOBAL_LOAD_ADDTID_B32
+81
+GLOBAL_ATOMIC_MIN_NUM_F32
+41
+GLOBAL_STORE_ADDTID_B32
+82
+GLOBAL_ATOMIC_MAX_NUM_F32
+43
+GLOBAL_INV
+83
+GLOBAL_LOAD_BLOCK
+44
+GLOBAL_WB
+84
+GLOBAL_STORE_BLOCK
+51
+GLOBAL_ATOMIC_SWAP_B32
+86
+GLOBAL_ATOMIC_ADD_F32
+52
+GLOBAL_ATOMIC_CMPSWAP_B32
+87
+GLOBAL_LOAD_TR_B128
+53
+GLOBAL_ATOMIC_ADD_U32
+88
+GLOBAL_LOAD_TR_B64
+54
+GLOBAL_ATOMIC_SUB_U32
+89
+GLOBAL_ATOMIC_PK_ADD_F16
+55
+GLOBAL_ATOMIC_SUB_CLAMP_U32
+90
+GLOBAL_ATOMIC_PK_ADD_BF16
+56
+GLOBAL_ATOMIC_MIN_I32
+115
+GLOBAL_ATOMIC_ORDERED_ADD_B64
+57
+GLOBAL_ATOMIC_MIN_U32
+15.10.3. VSCRATCH
+Table 120. VSCRATCH Opcodes
+Opcode #
+Name
+Opcode #
+Name
+16
+SCRATCH_LOAD_U8
+28
+SCRATCH_STORE_B96
+17
+SCRATCH_LOAD_I8
+29
+SCRATCH_STORE_B128
+18
+SCRATCH_LOAD_U16
+30
+SCRATCH_LOAD_D16_U8
+19
+SCRATCH_LOAD_I16
+31
+SCRATCH_LOAD_D16_I8
+20
+SCRATCH_LOAD_B32
+32
+SCRATCH_LOAD_D16_B16
+21
+SCRATCH_LOAD_B64
+33
+SCRATCH_LOAD_D16_HI_U8
+22
+SCRATCH_LOAD_B96
+34
+SCRATCH_LOAD_D16_HI_I8
+23
+SCRATCH_LOAD_B128
+35
+SCRATCH_LOAD_D16_HI_B16
+24
+SCRATCH_STORE_B8
+36
+SCRATCH_STORE_D16_HI_B8
+25
+SCRATCH_STORE_B16
+37
+SCRATCH_STORE_D16_HI_B16
+26
+SCRATCH_STORE_B32
+83
+SCRATCH_LOAD_BLOCK
+27
+SCRATCH_STORE_B64
+84
+SCRATCH_STORE_BLOCK
+"RDNA4" Instruction Set Architecture
+15.10. Flat, Global and Scratch Formats
+204 of 697
+
+=== PDF PAGE 215 ===
+15.11. Export Format
+15.11.1. VEXPORT
+Description
+EXPORT instructions
+The export format has only a single opcode, "EXPORT".
+Table 121. VEXPORT Fields
+Field Name
+Bits
+Format or Description
+EN
+[3:0]
+VGPR Enables: [0] enables VSRC0, … [3] enables VSRC3.
+TARGET
+[9:4]
+ Export destination:
+  0..7   MRT 0..7
+  8      Z
+  12-16  Position 0-4
+  20     Primitive data
+  21     Dual Source Blend Left
+  22     Dual Source Blend Right
+DONE
+[11]
+Indicates that this is the last export from the shader. Used only for Position and Pixel/color
+data.
+ROW
+[13]
+Row to export
+ENCODING
+[31:26]
+'b111110
+VSRC0
+[39:32]
+VGPR for source 0.
+VSRC1
+[47:40]
+VGPR for source 1.
+VSRC2
+[55:48]
+VGPR for source 2.
+VSRC3
+[63:56]
+VGPR for source 3.
+"RDNA4" Instruction Set Architecture
+15.11. Export Format
+205 of 697
+
